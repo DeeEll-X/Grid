@@ -1,10 +1,13 @@
-name: CI
+on:
+  push:
+    # Sequence of patterns matched against refs/tags
+    tags:
+      - 'v*' # Push events to matching v*, i.e. v1.0, v20.15.10
 
-on: [push]
+name: Create Release
 
 jobs:
   code-style-check:
-
     runs-on: ubuntu-latest
 
     steps:
@@ -32,32 +35,7 @@ jobs:
       # We'll use this as our working directory for all subsequent commands
       run: |
         cmake -E make_directory ${{runner.workspace}}/build
-        cmake -E make_directory ${{runner.workspace}}/build/debug
-        cmake -E make_directory ${{runner.workspace}}/build/release
-
-    - name: Configure CMake
-      # Use a bash shell so we can use the same syntax for environment variable
-      # access regardless of the host operating system
-      shell: bash
-      working-directory: ${{runner.workspace}}/build/debug
-      # Note the current convention is to use the -S and -B options here to specify source 
-      # and build directories, but this is only available with CMake 3.13 and higher.  
-      # The CMake binaries on the Github Actions machines are (as of this writing) 3.12
-      run: cmake $GITHUB_WORKSPACE -DCMAKE_BUILD_TYPE=debug
-
-    - name: Build Debug
-      working-directory: ${{runner.workspace}}/build/debug
-      shell: bash
-      # Execute the build.  You can specify a specific target with "--target <NAME>"
-      run: 
-        cmake --build . --config debug
-
-    - name: Test Debug
-      working-directory: ${{runner.workspace}}/build/debug
-      shell: bash
-      # Execute tests defined by the CMake configuration.  
-      # See https://cmake.org/cmake/help/latest/manual/ctest.1.html for more detail
-      run: ctest -C debug
+        cmake -E make_directory ${{}}
 
     - name: Configure CMake
       # Use a bash shell so we can use the same syntax for environment variable
@@ -82,3 +60,35 @@ jobs:
       # See https://cmake.org/cmake/help/latest/manual/ctest.1.html for more detail
       run: ctest -C release
 
+  release:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v2
+      
+    - name: Build project # This would actually build your project, using zip for an example artifact
+      run: |
+        zip Grid${{ github.ref }} ${{runner.workspace}}/**
+
+    - name: Create Release
+      id: create_release
+      uses: actions/create-release@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        tag_name: ${{ github.ref }}
+        release_name: Release ${{ github.ref }}
+        draft: false
+        prerelease: false
+
+    - name: Upload Release Asset
+      id: upload-release-asset 
+      uses: actions/upload-release-asset@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        upload_url: ${{ steps.create_release.outputs.upload_url }} # This pulls from the CREATE RELEASE step above, referencing it's ID to get its outputs object, which include a `upload_url`. See this blog post for more info: https://jasonet.co/posts/new-features-of-github-actions/#passing-data-to-future-steps 
+        asset_path: ./Grid${{ github.ref }}.zip
+        asset_name: Grid${{ github.ref }}.zip
+        asset_content_type: application/zip
