@@ -9,7 +9,7 @@ name: Create Release
 jobs:
   build:
     runs-on: ubuntu-latest
-    container: veiasai/grid-env:1.0
+    container: xiangyuxin/grid-env:2.0
 
     steps:
     - uses: actions/checkout@v1

@@ -1,9 +1,9 @@
 // Copyright [2020] <DeeEll-X/Veiasai>"
-
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
 
 #include "mock.hpp"
+#include "runtime/container.hpp"
 
 namespace Grid {
 namespace Test {
@@ -11,9 +11,12 @@ namespace Test {
 class ContainerFixture : public ::testing::Test {
  public:
   ContainerFixture() {}
-
+  Container mContainer;
+  fs::path bundle{"./bundle"};
+  fs::path syncPath{"./rootdir/containers"};
   void SetUp() {
     // code here will execute just before the test ensues
+    fs::create_directories(syncPath);
   }
 
   void TearDown() {
@@ -22,7 +25,28 @@ class ContainerFixture : public ::testing::Test {
   }
 };
 
-TEST_F(ContainerFixture, Empty) {}
+TEST_F(ContainerFixture, Create) {
+  std::string containerId = "containerId";
+
+  mContainer.Create(containerId, bundle, syncPath);
+  fs::path statusPath{syncPath};
+  statusPath /= containerId;
+  std::ifstream statusFile(statusPath, std::ifstream::binary);
+  Json::Value root;
+  Json::Reader reader;
+  if (!statusFile.is_open()) {
+    throw std::runtime_error("statusFile cannot open!");
+  }
+  if (reader.parse(statusFile, root)) {
+    ASSERT_EQ(root["ID"].asString(), containerId);
+    ASSERT_EQ(root["Bundle"].asString(), bundle.generic_string());
+    ASSERT_TRUE(root["Created"].asBool());
+    ASSERT_FALSE(root["Creating"].asBool());
+    ASSERT_FALSE(root["Running"].asBool());
+    ASSERT_FALSE(root["Stopped"].asBool());
+    ASSERT_EQ(root["Pid"].asInt64(), Json::Value::Int64(0));
+  }
+}
 
 }  // namespace Test
 }  // namespace Grid
