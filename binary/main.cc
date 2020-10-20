@@ -6,7 +6,7 @@
 #include <cli/parser.hpp>
 #include <runtime/core.hpp>
 
-int main(int argc, char* argv[]) {
+int main(int argc, char *argv[]) {
   Grid::Core core;
   Grid::Cli::Parser parser;
   // Initialize Google’s logging library.
@@ -15,7 +15,7 @@ int main(int argc, char* argv[]) {
   try {
     auto args = parser.parse(argc, argv);
     auto ret = core.exec(args);
-  } catch (const std::exception& e) {
+  } catch (const std::exception &e) {
     std::cerr << e.what() << '\n';
   }
 
