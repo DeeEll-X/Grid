@@ -1,15 +1,16 @@
 // Copyright [2020] <DeeEll-X/Veiasai>"
 #pragma once
-#include <jsoncpp/json/json.h>
 #include <experimental/filesystem>
+#include <jsoncpp/json/json.h>
 
+#include <bitset>
 #include <fstream>
 #include <iostream>
 #include <map>
 #include <string>
-#include <bitset>
 
 #include "args.hpp"
+#include "system.hpp"
 
 namespace Grid {
 namespace fs = std::experimental::filesystem;
@@ -19,15 +20,19 @@ class Container {
     std::string mBundle;
   };
 
-  Container() = default;
+  explicit Container(System &sys) : mSystem(sys) {}
   void Create(const std::string &id, const std::string &bundle,
               const std::string &syncPath);
   int Kill();
   void Sync();
+  void NewWorkSpace();
+  void CreateWriteLayer();
+  void CreateMountPoint();
 
  private:
   void LoadStatusFile();
   void LoadConfig();
+  System &mSystem;
   Config mConfig;
   std::string mOciVersion;
   std::string mId;
@@ -35,6 +40,7 @@ class Container {
   int64_t mPid{0};
   std::string mBundle;
   std::map<std::string, std::string> mAnnotations;
-  fs::path mStatusPath;
+  fs::path mRootPath;
+  // System &mSystem;
 };
 }  // namespace Grid

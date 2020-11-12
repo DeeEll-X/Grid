@@ -8,17 +8,24 @@
 
 #include <cli/parser.hpp>
 #include <runtime/core.hpp>
+#include <runtime/system.hpp>
 
 int main(int argc, char *argv[]) {
-  std::string json = getenv("GRID_CONFIG");
+  google::InitGoogleLogging(argv[0]);
+  const char *json = getenv("GRID_CONFIG");
+  if (json == nullptr) {
+    std::cout << "environment variable grid_config not exist" << std::endl;
+    return 1;
+  }
   Grid::Config config = Grid::Config::LoadFromJson(json);
-  Grid::Core core{config};
+  Grid::System sys;
+  Grid::Core core{config, sys};
   Grid::Cli::Parser parser;
   // Initialize Google’s logging library.
-  google::InitGoogleLogging(argv[0]);
+
   try {
     auto args = parser.parse(argc, argv);
-    auto ret = core.Exec(args);
+    auto ret = core.Exec(*args);
   } catch (const std::exception &e) {
     std::cerr << e.what() << '\n';
   }

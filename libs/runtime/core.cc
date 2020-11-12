@@ -1,30 +1,38 @@
 // Copyright [2020] <DeeEll-X/Veiasai>"
 #include <algorithm>
-#include <vector>
 #include <string>
+#include <vector>
 
-#include "core.hpp"
 #include "container.hpp"
+#include "core.hpp"
 #include "utils.hpp"
+
 namespace Grid {
 static std::string MakeContainersSyncPath(const std::string &rootDir) {
   return rootDir + "/containers";
 }
-Core::Core(const Config &c) : mConfig(c) {}
+Core::Core(const Config &c, System &s) : mConfig(c), mSystem(s) {}
 
 void Core::Initialize() {
   std::vector<std::string> vec{MakeContainersSyncPath(mConfig.mRootDir)};
   std::for_each(vec.begin(), vec.end(), MakeDir);
 }
 
-CreateRet Core::Exec(const CreateArgs &args) {
+std::unique_ptr<CreateRet> Core::Exec(const CreateArgs &args) {
   // load config and add to map
-  auto it = mContainerMap.emplace(args.mContainerId, Container{});
-  mContainerMap[args.mContainerId].Create(
+  auto it = mContainerMap.emplace(args.mContainerId,
+                                  std::make_unique<Container>(mSystem));
+  if (!it.second) {
+    throw std::runtime_error(
+        "emplace container to the map fail: containerid: " + args.mContainerId);
+  }
+  mContainerMap[args.mContainerId]->Create(
       args.mContainerId, args.mBundlePath,
       MakeContainersSyncPath(mConfig.mRootDir));
-  // changed
+  return std::make_unique<CreateRet>(args.mContainerId, 0);
 }
 
-StartRet Core::Exec(const StartArgs &args) {}
+std::unique_ptr<StartRet> Core::Exec(const StartArgs &args) {
+  return std::make_unique<StartRet>(args.mContainerId, 0);
+}
 }  // namespace Grid

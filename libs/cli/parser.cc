@@ -6,6 +6,7 @@
 #include <iostream>
 #include <string>
 #include <vector>
+#include <memory>
 
 #include <boost/program_options/parsers.hpp>
 #include <boost/program_options/variables_map.hpp>
@@ -26,7 +27,7 @@ Parser::Parser()
                                 "create container");
 }
 
-Args Parser::parse(int argc, char *argv[]) {
+std::unique_ptr<Args> Parser::parse(int argc, char *argv[]) {
   po::positional_options_description p;
   p.add("action", -1);
 
@@ -38,6 +39,7 @@ Args Parser::parse(int argc, char *argv[]) {
             vm);
   po::notify(vm);
 
+  std::unique_ptr<Args> ret;
   if (vm.count("help")) {
     cout << mGenericOptions << "\n";
     exit(0);
@@ -46,18 +48,18 @@ Args Parser::parse(int argc, char *argv[]) {
     auto vec = vm["action"].as<std::vector<std::string>>();
     if (vec[0] == "create") {
       if (vec.size() == 3) {
+        ret.reset(new CreateArgs(vec[1], vec[2]));
         CreateArgs args{vec[1], vec[2]};
         LOG(INFO) << " parser: create "
                   << " container id: " << args.mContainerId
                   << " bundle path: " << args.mBundlePath;
-        return args;
       } else {
         throw std::runtime_error("parse : create must have 2 args!");
       }
     }
   }
 
-  return CreateArgs();
+  return ret;
 }
 
 }  // namespace Cli

@@ -1,31 +1,55 @@
 // Copyright [2020] <DeeEll-X/Veiasai>"
 #include <glog/logging.h>
-
+#include <sys/mount.h>
 #include <vector>
 
 #include "container.hpp"
 
 namespace Grid {
-
+// rootdir/containers/id/->mntpath
 void Container::Create(const std::string &id, const std::string &bundle,
-                       const std::string &syncPath) {
+                       const std::string &containersSyncPath) {
   mId = id;
   mBundle = bundle;
   LoadConfig();
   mState.reset();
   mState[CREATED] = true;
-  mStatusPath.clear();
-  mStatusPath /= syncPath;
-  mStatusPath /= id;
+  mRootPath.clear();
+  mRootPath /= containersSyncPath;
+  mRootPath /= id;
+  NewWorkSpace();  // add mnt URL and root URL
   LOG(INFO) << "creating container: "
-            << " id" << mId << " bundle" << mBundle << " statusPath"
-            << mStatusPath;
+            << " id:" << mId << " bundle:" << mBundle
+            << " contentPath:" << mRootPath;
   // write file
   Sync();
 }
 
+void Container::NewWorkSpace() {
+  CreateWriteLayer();
+  CreateMountPoint();
+}
+
+void Container::CreateWriteLayer() {
+  fs::path wLayerPath{mRootPath};
+  wLayerPath /= "writeLayer";
+  fs::create_directories(wLayerPath);
+}
+
+void Container::CreateMountPoint() {
+  fs::path mntPath{mRootPath};
+  mntPath /= "mntFolder";
+  fs::create_directories(mntPath);
+  fs::path wLayerPath{mRootPath};
+  wLayerPath /= "writeLayer";
+  mSystem.MountAUFS(wLayerPath.generic_string(), mBundle,
+                    mntPath.generic_string());
+}
+
 void Container::LoadStatusFile() {
-  std::ifstream statusfile(mStatusPath, std::ifstream::binary);
+  fs::path statusPath{mRootPath};
+  statusPath /= "status.json";
+  std::ifstream statusfile(statusPath, std::ifstream::binary);
   Json::Value root;
   Json::Reader reader;
   if (!statusfile.is_open()) {
@@ -81,7 +105,9 @@ void Container::Sync() {
   }
 
   std::ofstream statusFile;
-  statusFile.open(mStatusPath);
+  fs::path statusPath{mRootPath};
+  statusPath /= "status.json";
+  statusFile.open(statusPath);
   if (!statusFile.is_open()) {
     throw std::runtime_error("statusFile cannot open!");
   }

@@ -2,6 +2,8 @@
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
 
+#include <string>
+
 #include "mock.hpp"
 #include "runtime/container.hpp"
 
@@ -10,7 +12,8 @@ namespace Test {
 
 class ContainerFixture : public ::testing::Test {
  public:
-  ContainerFixture() {}
+  ContainerFixture() : mMockSystem(), mContainer{mMockSystem} {}
+  MockSystem mMockSystem;
   Container mContainer;
   fs::path bundle{"./bundle"};
   fs::path syncPath{"./rootdir/containers"};
@@ -28,9 +31,20 @@ class ContainerFixture : public ::testing::Test {
 TEST_F(ContainerFixture, Create) {
   std::string containerId = "containerId";
 
+  fs::path wPath{syncPath}, mntPath{syncPath};
+  wPath /= containerId;
+  wPath /= "writeLayer";
+  mntPath /= containerId;
+  mntPath /= "mntFolder";
+  EXPECT_CALL(mMockSystem,
+              MountAUFS(wPath.generic_string(), bundle.generic_string(),
+                        mntPath.generic_string()));
+
   mContainer.Create(containerId, bundle, syncPath);
+
   fs::path statusPath{syncPath};
   statusPath /= containerId;
+  statusPath /= "status.json";
   std::ifstream statusFile(statusPath, std::ifstream::binary);
   Json::Value root;
   Json::Reader reader;
