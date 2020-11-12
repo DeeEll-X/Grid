@@ -1,10 +1,9 @@
 // Copyright [2020] <DeeEll-X/Veiasai>"
 #pragma once
 
-#include <memory>
-
 #include <boost/program_options/option.hpp>
 #include <boost/program_options/options_description.hpp>
+#include <memory>
 
 #include "../runtime/args.hpp"
 
@@ -21,7 +20,6 @@ class Parser {
  private:
   po::options_description mGenericOptions;
   po::options_description mConfigFileOptions;
-  po::options_description mCreateOptions;
 };
 
 }  // namespace Cli

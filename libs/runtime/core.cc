@@ -8,14 +8,26 @@
 #include "utils.hpp"
 
 namespace Grid {
-static std::string MakeContainersSyncPath(const std::string &rootDir) {
-  return rootDir + "/containers";
+
+void Core::RootDir::Initialize() {
+  Utils::MakeDir(mRoot);
+  Utils::MakeDir(mContainers);
+  Utils::MakeDir(mImages);
 }
-Core::Core(const Config &c, System &s) : mConfig(c), mSystem(s) {}
+
+Core::Core(const Config &c, System &s)
+    : mConfig(c), mSystem(s), mRootDir(mConfig.mRootDir) {}
 
 void Core::Initialize() {
-  std::vector<std::string> vec{MakeContainersSyncPath(mConfig.mRootDir)};
-  std::for_each(vec.begin(), vec.end(), MakeDir);
+  mRootDir.Initialize();
+
+  for (const auto &containerDir :
+       fs::directory_iterator(mRootDir.mContainers)) {
+    // TODO(DeeEll-X): check containerDir is dir
+    auto it = mContainerMap.emplace(containerDir.path().filename(),
+                                    std::make_unique<Container>(mSystem));
+    it.first->second->Restore(containerDir);
+  }
 }
 
 std::unique_ptr<CreateRet> Core::Exec(const CreateArgs &args) {
@@ -28,11 +40,29 @@ std::unique_ptr<CreateRet> Core::Exec(const CreateArgs &args) {
   }
   mContainerMap[args.mContainerId]->Create(
       args.mContainerId, args.mBundlePath,
-      MakeContainersSyncPath(mConfig.mRootDir));
+      mRootDir.mContainers / args.mContainerId);
   return std::make_unique<CreateRet>(args.mContainerId, 0);
 }
 
 std::unique_ptr<StartRet> Core::Exec(const StartArgs &args) {
+  auto it = mContainerMap.find(args.mContainerId);
+  if (it == mContainerMap.end()) {
+    throw std::runtime_error(
+        "start container fail: container not found! containerid: " +
+        args.mContainerId);
+  }
+  it->second->Start();
   return std::make_unique<StartRet>(args.mContainerId, 0);
+}
+
+std::unique_ptr<KillRet> Core::Exec(const KillArgs &args) {
+  auto it = mContainerMap.find(args.mContainerId);
+  if (it == mContainerMap.end()) {
+    throw std::runtime_error(
+        "start container fail: container not found! containerid: " +
+        args.mContainerId);
+  }
+  it->second->Kill(args.mSignal);
+  return std::make_unique<KillRet>(args.mContainerId, 0);
 }
 }  // namespace Grid

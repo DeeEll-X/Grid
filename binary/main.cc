@@ -20,6 +20,7 @@ int main(int argc, char *argv[]) {
   Grid::Config config = Grid::Config::LoadFromJson(json);
   Grid::System sys;
   Grid::Core core{config, sys};
+  core.Initialize();
   Grid::Cli::Parser parser;
   // Initialize Google’s logging library.
 
