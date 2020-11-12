@@ -18,11 +18,11 @@ jobs:
         pip install cpplint
     - name: Analysing the code with cpplint
       run: |
-        cpplint --recursive .
+        cpplint --recursive --exclude=externals/ .
 
   build:
     runs-on: ubuntu-latest
-    container: veiasai/grid-env:1.0
+    container: xiangyuxin/grid-env:2.0
   
     steps:
     - uses: actions/checkout@v1
@@ -60,7 +60,7 @@ jobs:
       shell: bash
       # Execute tests defined by the CMake configuration.  
       # See https://cmake.org/cmake/help/latest/manual/ctest.1.html for more detail
-      run: ctest
+      run: ./unit_test
 
     - name: Configure CMake
       # Use a bash shell so we can use the same syntax for environment variable
@@ -83,5 +83,5 @@ jobs:
       shell: bash
       # Execute tests defined by the CMake configuration.  
       # See https://cmake.org/cmake/help/latest/manual/ctest.1.html for more detail
-      run: ctest
+      run: ./unit_test
 

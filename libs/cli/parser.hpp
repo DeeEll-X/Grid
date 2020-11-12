@@ -1,6 +1,8 @@
 // Copyright [2020] <DeeEll-X/Veiasai>"
 #pragma once
 
+#include <memory>
+
 #include <boost/program_options/option.hpp>
 #include <boost/program_options/options_description.hpp>
 
@@ -14,7 +16,7 @@ namespace po = boost::program_options;
 class Parser {
  public:
   Parser();
-  Args parse(int argc, char* argv[]);
+  std::unique_ptr<Args> parse(int argc, char *argv[]);
 
  private:
   po::options_description mGenericOptions;
