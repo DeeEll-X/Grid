@@ -3,9 +3,8 @@
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
 
-#include <string>
-
 #include <runtime/system.hpp>
+#include <string>
 
 namespace Grid {
 namespace Test {

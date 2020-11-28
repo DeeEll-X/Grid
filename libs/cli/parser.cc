@@ -4,9 +4,9 @@
 #include <glog/logging.h>
 
 #include <iostream>
+#include <memory>
 #include <string>
 #include <vector>
-#include <memory>
 
 #include <boost/program_options/parsers.hpp>
 #include <boost/program_options/variables_map.hpp>
@@ -18,13 +18,11 @@ namespace Cli {
 
 Parser::Parser()
     : mGenericOptions("Generic Options"),
-      mConfigFileOptions("Config File Options"),
-      mCreateOptions("Create Options") {
-  mCreateOptions.add_options()("bundle", "image bundle path");
-  mGenericOptions.add(mConfigFileOptions).add(mCreateOptions);
+      mConfigFileOptions("Config File Options") {
+  mGenericOptions.add(mConfigFileOptions);
   mGenericOptions.add_options()("help", "produce help message");
   mGenericOptions.add_options()("action", po::value<std::vector<std::string>>(),
-                                "create container");
+                                "container operations");
 }
 
 std::unique_ptr<Args> Parser::parse(int argc, char *argv[]) {
@@ -49,14 +47,37 @@ std::unique_ptr<Args> Parser::parse(int argc, char *argv[]) {
     if (vec[0] == "create") {
       if (vec.size() == 3) {
         ret.reset(new CreateArgs(vec[1], vec[2]));
-        CreateArgs args{vec[1], vec[2]};
         LOG(INFO) << " parser: create "
-                  << " container id: " << args.mContainerId
-                  << " bundle path: " << args.mBundlePath;
+                  << " container id: " << vec[1] << " bundle path: " << vec[2];
       } else {
         throw std::runtime_error("parse : create must have 2 args!");
       }
+    } else if (vec[0] == "start") {
+      if (vec.size() == 2) {
+        ret.reset(new StartArgs(vec[1]));
+        LOG(INFO) << " parse: start "
+                  << " container id: " << vec[1];
+      } else {
+        throw std::runtime_error("parse : start must have 1 arg!");
+      }
+    } else if (vec[0] == "kill") {
+      if (vec.size() == 3) {
+        int signal = stoi(vec[2]);
+        if (!signal) {
+          throw std::runtime_error("kill failed: signal is invalid!");
+        }
+        ret.reset(new KillArgs(vec[1], signal));
+        LOG(INFO) << " parser: kill "
+                  << " container id: " << vec[1] << " signal: " << vec[2];
+      } else {
+        throw std::runtime_error("parse : kill must have 2 args!");
+      }
+    } else {
+      throw std::runtime_error("parse : unknown action!");
     }
+  } else {
+    cout << mGenericOptions << "\n";
+    exit(0);
   }
 
   return ret;
