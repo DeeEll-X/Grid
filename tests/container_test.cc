@@ -13,8 +13,7 @@ namespace Grid {
 class ContainerVisitor {
  public:
   static void SetStatus(Container& container, const Status status) {
-    container.mState.reset();
-    container.mState[status] = true;
+    container.mStatus = status;
   }
   static void SetRootPath(Container& container, const fs::path& path) {
     container.mRootPath = path;
@@ -72,10 +71,7 @@ TEST_F(ContainerFixture, Create) {
   if (reader.parse(statusFile, root)) {
     ASSERT_EQ(root["ID"].asString(), mContainerId);
     ASSERT_EQ(root["Bundle"].asString(), bundle.generic_string());
-    ASSERT_TRUE(root["Created"].asBool());
-    ASSERT_FALSE(root["Creating"].asBool());
-    ASSERT_FALSE(root["Running"].asBool());
-    ASSERT_FALSE(root["Stopped"].asBool());
+    ASSERT_EQ(root["Status"].asString(), "created");
     ASSERT_EQ(root["Pid"].asInt64(), Json::Value::Int64(0));
   }
   fs::remove_all(syncPath / mContainerId);

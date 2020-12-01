@@ -6,15 +6,17 @@
 
 namespace Grid {
 enum Status { CREATING, CREATED, RUNNING, STOPPED };
+std::string StatusToString(Status stat);
+Status StringToStatus(const std::string& stat);
 class Args {
  public:
-  enum argsType { Create, Start, Kill, Delete, State };
+  enum argsType { Create, Start, Kill, State, Delete };
   virtual argsType GetType() const = 0;
 };
 
 class Ret {
  public:
-  enum retType { Create, Start, Kill, Delete, State };
+  enum retType { Create, Start, Kill, State, Delete };
   virtual retType GetType() const = 0;
 };
 
@@ -30,11 +32,10 @@ class CreateArgs : public Args {
 
 class CreateRet : public Ret {
  public:
-  CreateRet(const std::string &containerId, const int64_t stat)
-      : mContainerId(containerId), status(stat) {}
+  CreateRet(const std::string &containerId)
+      : mContainerId(containerId) {}
   retType GetType() const override { return retType::Create; }
   std::string mContainerId;
-  int64_t status;
 };
 
 class StartArgs : public Args {
@@ -47,11 +48,10 @@ class StartArgs : public Args {
 
 class StartRet : public Ret {
  public:
-  StartRet(const std::string &containerId, const int64_t stat)
-      : mContainerId(containerId), status(stat) {}
+  StartRet(const std::string &containerId)
+      : mContainerId(containerId) {}
   retType GetType() const override { return retType::Start; }
   std::string mContainerId;
-  int64_t status;
 };
 
 class KillArgs : public Args {
@@ -65,10 +65,41 @@ class KillArgs : public Args {
 
 class KillRet : public Ret {
  public:
-  KillRet(const std::string &containerId, const int64_t stat)
-      : mContainerId(containerId), status(stat) {}
+  KillRet(const std::string &containerId)
+      : mContainerId(containerId) {}
   retType GetType() const override { return retType::Kill; }
   std::string mContainerId;
-  int64_t status;
+};
+
+class StateArgs : public Args {
+ public:
+  explicit StateArgs(const std::string &containerId)
+      : mContainerId(containerId) {}
+  argsType GetType() const override { return argsType::State; }
+  std::string mContainerId;
+};
+
+class StateRet : public Ret {
+ public:
+  explicit StateRet(const std::string &containerId)
+      : mContainerId(containerId){}
+  retType GetType() const override { return retType::State; }
+  std::string mContainerId;
+};
+
+class DeleteArgs : public Args {
+ public:
+  explicit DeleteArgs(const std::string &containerId)
+      : mContainerId(containerId) {}
+  argsType GetType() const override { return argsType::Delete; }
+  std::string mContainerId;
+};
+
+class DeleteRet : public Ret {
+ public:
+  explicit DeleteRet(const std::string &containerId)
+      : mContainerId(containerId){}
+  retType GetType() const override { return retType::Delete; }
+  std::string mContainerId;
 };
 }  // namespace Grid

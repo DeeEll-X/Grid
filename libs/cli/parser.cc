@@ -72,6 +72,22 @@ std::unique_ptr<Args> Parser::parse(int argc, char *argv[]) {
       } else {
         throw std::runtime_error("parse : kill must have 2 args!");
       }
+    } else if (vec[0] == "state") {
+      if(vec.size() == 2) {
+        ret.reset(new StateArgs(vec[1]));
+        LOG(INFO) << " parse: state "
+                  << " container id: " << vec[1];
+      } else {
+        throw std::runtime_error("state failed: state must have 1 arg!");
+      }
+    } else if (vec[0] == "delete") {
+      if(vec.size() == 2) {
+        ret.reset(new DeleteArgs(vec[1]));
+        LOG(INFO) << " parse: delete "
+                  << " container id: " << vec[1];
+      } else {
+        throw std::runtime_error("state failed: state must have 1 arg!");
+      }
     } else {
       throw std::runtime_error("parse : unknown action!");
     }

@@ -48,6 +48,8 @@ class Container {
               const fs::path &rootPath);
   void Start();
   void Kill(const int signal);
+  void State();
+  void Delete();
   void Restore(const fs::path &rootPath);
 
  private:
@@ -60,15 +62,16 @@ class Container {
   void NewWorkSpace();
   void CreateWriteLayer();
   void CreateMountPoint();
+  void StateToJson(Json::Value&);
   void Sync();
   void AmendStatus();
   System &mSystem;
   Config mConfig;
-  std::string mOciVersion;
-  std::string mId;
-  std::bitset<sizeof(Status)> mState;
+  std::string mOciVersion{""};
+  std::string mId{""};
+  Status mStatus{CREATING};
   int64_t mPid{0};
-  std::string mBundle;
+  std::string mBundle{""};
   std::map<std::string, std::string> mAnnotations;
   fs::path mRootPath;
   // System &mSystem;
