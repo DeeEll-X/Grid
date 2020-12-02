@@ -18,10 +18,7 @@ class ContainerVisitor {
   static void SetRootPath(Container& container, const fs::path& path) {
     container.mRootPath = path;
   }
-  static void SetPid(Container& container, int pid)
-  {
-    container.mPid = pid;
-  }
+  static void SetPid(Container& container, int pid) { container.mPid = pid; }
   static Container::Config& MutableConfig(Container& container) {
     return container.mConfig;
   }
@@ -103,14 +100,11 @@ TEST_F(ContainerFixture, Kill) {
   static bool received;
   received = false;
   struct sigaction act;
-  act.sa_handler = [](int){
-    received = true;
-  };
+  act.sa_handler = [](int) { received = true; };
   sigemptyset(&act.sa_mask);
   act.sa_flags = 0;
 
-  if (sigaction(SIGINT, &act, NULL) < 0)
-    ASSERT_TRUE(false);
+  if (sigaction(SIGINT, &act, NULL) < 0) ASSERT_TRUE(false);
 
   mContainer.Kill(2);
   sleep(1);

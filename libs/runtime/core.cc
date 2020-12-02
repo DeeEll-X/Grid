@@ -1,10 +1,11 @@
 // Copyright [2020] <DeeEll-X/Veiasai>"
+#include "core.hpp"
+
 #include <algorithm>
 #include <string>
 #include <vector>
 
 #include "container.hpp"
-#include "core.hpp"
 #include "utils.hpp"
 
 namespace Grid {

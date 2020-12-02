@@ -1,9 +1,10 @@
 #include "args.hpp"
+
 #include <stdexcept>
 
 namespace Grid {
-std::string StatusToString(Status stat){
-  switch(stat){
+std::string StatusToString(Status stat) {
+  switch (stat) {
     case CREATING:
       return "creating";
     case CREATED:
@@ -15,16 +16,16 @@ std::string StatusToString(Status stat){
   }
 }
 
-Status StringToStatus(const std::string& stat){
-  if(stat == "creating"){
+Status StringToStatus(const std::string& stat) {
+  if (stat == "creating") {
     return CREATING;
-  } else if(stat == "created"){
+  } else if (stat == "created") {
     return CREATED;
-  } else if(stat == "running"){
+  } else if (stat == "running") {
     return RUNNING;
-  } else if(stat == "stopped"){
+  } else if (stat == "stopped") {
     return STOPPED;
   }
-  throw std::runtime_error("unknown status: "+ stat );
+  throw std::runtime_error("unknown status: " + stat);
 }
-}
+}  // namespace Grid

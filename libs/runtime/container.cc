@@ -77,14 +77,13 @@ void Container::State() {
 
 void Container::Delete() {
   // kill pid
-  if(mStatus == RUNNING){
+  if (mStatus == RUNNING) {
     throw std::runtime_error("delete failed: container is running");
   }
   // DeleteMountPoint(containerName)
   umount((mRootPath / "mntFolder").c_str());
-	// DeleteWriteLayer(containerName)
+  // DeleteWriteLayer(containerName)
   fs::remove_all(mRootPath);
-
 }
 
 void Container::Restore(const fs::path &rootPath) {
@@ -242,7 +241,7 @@ void Container::LoadConfig() {
   configFile.close();
 }
 
-void Container::StateToJson(Json::Value& root) {
+void Container::StateToJson(Json::Value &root) {
   root["OCIVersion"] = mOciVersion;
   root["ID"] = mId;
   root["Status"] = StatusToString(mStatus);
@@ -286,6 +285,5 @@ void Container::AmendStatus() {
     close(logFd);
   }
 }
-
 
 }  // namespace Grid

@@ -62,7 +62,7 @@ class Container {
   void NewWorkSpace();
   void CreateWriteLayer();
   void CreateMountPoint();
-  void StateToJson(Json::Value&);
+  void StateToJson(Json::Value &);
   void Sync();
   void AmendStatus();
   System &mSystem;
