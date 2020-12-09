@@ -21,8 +21,7 @@ void Container::Create(const std::string &id, const std::string &bundle,
   mId = id;
   mBundle = bundle;
   LoadConfig();
-  mState.reset();
-  mState[CREATED] = true;
+  mStatus = CREATED;
   mRootPath = rootPath;
   NewWorkSpace();  // add mnt URL and root URL
   LOG(INFO) << "creating container: "
@@ -33,7 +32,7 @@ void Container::Create(const std::string &id, const std::string &bundle,
 }
 
 void Container::Start() {
-  if (mState[RUNNING]) {
+  if (mStatus == RUNNING) {
     throw std::runtime_error("this container is already running!");
   }
   /* Allocate stack for child */
@@ -52,23 +51,34 @@ void Container::Start() {
     throw std::runtime_error(strerror(errno));
   }
   mPid = child_process;
-  mState.reset();
-  mState[RUNNING] = true;
+  mStatus = RUNNING;
   Sync();
   if (mConfig.mProcess.terminal) {
     siginfo_t siginfo;
     waitid(P_PID, child_process, &siginfo, WEXITED);
-    mState.reset();
-    mState[STOPPED] = true;
+    mStatus = STOPPED;
     Sync();
   }
 }
 
 void Container::Kill(const int signal) {
-  if (mState[RUNNING] == true)
+  if (mStatus == RUNNING)
     kill(mPid, signal);
   else
     throw std::runtime_error("kill failed: container is not running");
+}
+
+void Container::State(Json::Value &jsonval) { StateToJson(jsonval); }
+
+void Container::Delete() {
+  // kill pid
+  if (mStatus == RUNNING) {
+    throw std::runtime_error("delete failed: container is running");
+  }
+  // DeleteMountPoint(containerName)
+  umount((mRootPath / "mntFolder").c_str());
+  // DeleteWriteLayer(containerName)
+  fs::remove_all(mRootPath);
 }
 
 void Container::Restore(const fs::path &rootPath) {
@@ -173,9 +183,7 @@ void Container::NewWorkSpace() {
 }
 
 void Container::CreateWriteLayer() {
-  fs::path wLayerPath{mRootPath};
-  wLayerPath /= "writeLayer";
-  fs::create_directories(wLayerPath);
+  fs::create_directories(mRootPath / "writeLayer");
 }
 
 void Container::CreateMountPoint() {
@@ -189,8 +197,7 @@ void Container::CreateMountPoint() {
 }
 
 void Container::LoadStatusFile() {
-  fs::path statusPath{mRootPath};
-  statusPath /= "status.json";
+  fs::path statusPath{mRootPath / "status.json"};
   std::ifstream statusfile(statusPath, std::ifstream::binary);
   Json::Value root;
   Json::Reader reader;
@@ -200,10 +207,7 @@ void Container::LoadStatusFile() {
   if (reader.parse(statusfile, root)) {
     mOciVersion = root["OCIVersion"].asString();
     mId = root["ID"].asString();
-    mState[CREATED] = root["Created"].asBool();
-    mState[RUNNING] = root["Running"].asBool();
-    mState[STOPPED] = root["Stopped"].asBool();
-    mState[CREATING] = root["Creating"].asBool();
+    mStatus = StringToStatus(root["Status"].asString());
     mPid = root["Pid"].asInt64();
     mBundle = root["Bundle"].asString();
     mConfig.mBundle = mBundle;
@@ -232,20 +236,21 @@ void Container::LoadConfig() {
   configFile.close();
 }
 
-void Container::Sync() {
-  Json::Value root;
-
+void Container::StateToJson(Json::Value &root) {
   root["OCIVersion"] = mOciVersion;
   root["ID"] = mId;
-  root["Created"] = static_cast<bool>(mState[CREATED]);
-  root["Running"] = static_cast<bool>(mState[RUNNING]);
-  root["Stopped"] = static_cast<bool>(mState[STOPPED]);
-  root["Creating"] = static_cast<bool>(mState[CREATING]);
+  root["Status"] = StatusToString(mStatus);
+  // root["Status"] = StatusToString()
   root["Pid"] = Json::Value::Int64(mPid);
   root["Bundle"] = mBundle;
   for (auto &it : mAnnotations) {
     root["Annotations"][it.first] = it.second;
   }
+}
+
+void Container::Sync() {
+  Json::Value root;
+  StateToJson(root);
 
   std::ofstream statusFile;
   fs::path statusPath{mRootPath};
@@ -261,7 +266,7 @@ void Container::Sync() {
 }
 
 void Container::AmendStatus() {
-  if (mState[RUNNING]) {
+  if (mStatus == RUNNING) {
     if (!mPid) {
       throw std::runtime_error("state is running but pid = 0");
     }
@@ -269,11 +274,11 @@ void Container::AmendStatus() {
     int logFd = open(logPath.c_str(), O_CREAT | O_WRONLY);
     if (flock(logFd, LOCK_EX | LOCK_NB)) {
       mPid = 0;
-      mState.reset();
-      mState[STOPPED] = true;
+      mStatus == STOPPED;
       Sync();
     }
     close(logFd);
   }
 }
+
 }  // namespace Grid

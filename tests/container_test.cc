@@ -13,16 +13,12 @@ namespace Grid {
 class ContainerVisitor {
  public:
   static void SetStatus(Container& container, const Status status) {
-    container.mState.reset();
-    container.mState[status] = true;
+    container.mStatus = status;
   }
   static void SetRootPath(Container& container, const fs::path& path) {
     container.mRootPath = path;
   }
-  static void SetPid(Container& container, int pid)
-  {
-    container.mPid = pid;
-  }
+  static void SetPid(Container& container, int pid) { container.mPid = pid; }
   static Container::Config& MutableConfig(Container& container) {
     return container.mConfig;
   }
@@ -72,19 +68,18 @@ TEST_F(ContainerFixture, Create) {
   if (reader.parse(statusFile, root)) {
     ASSERT_EQ(root["ID"].asString(), mContainerId);
     ASSERT_EQ(root["Bundle"].asString(), bundle.generic_string());
-    ASSERT_TRUE(root["Created"].asBool());
-    ASSERT_FALSE(root["Creating"].asBool());
-    ASSERT_FALSE(root["Running"].asBool());
-    ASSERT_FALSE(root["Stopped"].asBool());
+    ASSERT_EQ(root["Status"].asString(), "created");
     ASSERT_EQ(root["Pid"].asInt64(), Json::Value::Int64(0));
   }
   fs::remove_all(syncPath / mContainerId);
 }
+
 TEST_F(ContainerFixture, Start) {
   if (getenv("ENABLE_GRID_ROOT") == nullptr) {
     return;
   }
   ASSERT_EQ(system("/bin/bash create_container.sh"), 0);
+  ASSERT_EQ(system("/bin/bash mount_mntFolder.sh"), 0);
   ContainerVisitor::SetStatus(mContainer, CREATED);
   ContainerVisitor::SetRootPath(mContainer, syncPath / mContainerId);
   auto& config = ContainerVisitor::MutableConfig(mContainer);
@@ -94,7 +89,9 @@ TEST_F(ContainerFixture, Start) {
   process.args = {"/bin/echo", "1"};
   mContainer.Start();
   sleep(1);
+  ASSERT_EQ(system("/bin/bash remove_container.sh"), 0);
 }
+
 TEST_F(ContainerFixture, Kill_NotRunning) {
   ContainerVisitor::SetStatus(mContainer, STOPPED);
   EXPECT_THROW(mContainer.Kill(2), std::runtime_error);
@@ -107,18 +104,27 @@ TEST_F(ContainerFixture, Kill) {
   static bool received;
   received = false;
   struct sigaction act;
-  act.sa_handler = [](int){
-    received = true;
-  };
+  act.sa_handler = [](int) { received = true; };
   sigemptyset(&act.sa_mask);
   act.sa_flags = 0;
 
-  if (sigaction(SIGINT, &act, NULL) < 0)
-    ASSERT_TRUE(false);
+  if (sigaction(SIGINT, &act, NULL) < 0) ASSERT_TRUE(false);
 
   mContainer.Kill(2);
   sleep(1);
   ASSERT_TRUE(received);
+}
+
+TEST_F(ContainerFixture, RestoreAndState) {
+  ASSERT_EQ(system("/bin/bash create_container.sh"), 0);
+  mContainer.Restore(syncPath / mContainerId);
+  Json::Value jsonVal;
+  mContainer.State(jsonVal);
+  ASSERT_EQ(jsonVal["Status"].asString(), "created");
+  ASSERT_EQ(jsonVal["OCIVersion"].asString(), "1.0.0");
+  ASSERT_EQ(jsonVal["ID"].asString(), "testContainer");
+  ASSERT_EQ(jsonVal["Pid"].asInt(), 0);
+  ASSERT_EQ(jsonVal["Bundle"].asString(), "rootdir/containers/testContainer");
 }
 }  // namespace Test
 }  // namespace Grid

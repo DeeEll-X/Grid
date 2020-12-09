@@ -1,10 +1,11 @@
 // Copyright [2020] <DeeEll-X/Veiasai>"
+#include "core.hpp"
+
 #include <algorithm>
 #include <string>
 #include <vector>
 
 #include "container.hpp"
-#include "core.hpp"
 #include "utils.hpp"
 
 namespace Grid {
@@ -41,7 +42,7 @@ std::unique_ptr<CreateRet> Core::Exec(const CreateArgs &args) {
   mContainerMap[args.mContainerId]->Create(
       args.mContainerId, args.mBundlePath,
       mRootDir.mContainers / args.mContainerId);
-  return std::make_unique<CreateRet>(args.mContainerId, 0);
+  return std::make_unique<CreateRet>(args.mContainerId);
 }
 
 std::unique_ptr<StartRet> Core::Exec(const StartArgs &args) {
@@ -52,7 +53,7 @@ std::unique_ptr<StartRet> Core::Exec(const StartArgs &args) {
         args.mContainerId);
   }
   it->second->Start();
-  return std::make_unique<StartRet>(args.mContainerId, 0);
+  return std::make_unique<StartRet>(args.mContainerId);
 }
 
 std::unique_ptr<KillRet> Core::Exec(const KillArgs &args) {
@@ -63,6 +64,29 @@ std::unique_ptr<KillRet> Core::Exec(const KillArgs &args) {
         args.mContainerId);
   }
   it->second->Kill(args.mSignal);
-  return std::make_unique<KillRet>(args.mContainerId, 0);
+  return std::make_unique<KillRet>(args.mContainerId);
+}
+
+std::unique_ptr<StateRet> Core::Exec(const StateArgs &args) {
+  auto it = mContainerMap.find(args.mContainerId);
+  if (it == mContainerMap.end()) {
+    throw std::runtime_error(
+        "start container fail: container not found! containerid: " +
+        args.mContainerId);
+  }
+  Json::Value jsonval;
+  it->second->State(jsonval);
+  return std::make_unique<StateRet>(args.mContainerId, jsonval);
+}
+
+std::unique_ptr<DeleteRet> Core::Exec(const DeleteArgs &args) {
+  auto it = mContainerMap.find(args.mContainerId);
+  if (it == mContainerMap.end()) {
+    throw std::runtime_error(
+        "start container fail: container not found! containerid: " +
+        args.mContainerId);
+  }
+  it->second->Delete();
+  return std::make_unique<DeleteRet>(args.mContainerId);
 }
 }  // namespace Grid

@@ -1,12 +1,10 @@
 // Copyright [2020] <DeeEll-X/Veiasai>"
+#include <glog/logging.h>
 #include <stdio.h>
 #include <stdlib.h>
 
-#include <glog/logging.h>
-
-#include <iostream>
-
 #include <cli/parser.hpp>
+#include <iostream>
 #include <runtime/core.hpp>
 #include <runtime/system.hpp>
 

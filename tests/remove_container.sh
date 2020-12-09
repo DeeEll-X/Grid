@@ -1,0 +1,1 @@
+rm -rf rootdir/containers/testContainer/
