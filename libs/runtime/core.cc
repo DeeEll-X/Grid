@@ -74,8 +74,9 @@ std::unique_ptr<StateRet> Core::Exec(const StateArgs &args) {
         "start container fail: container not found! containerid: " +
         args.mContainerId);
   }
-  it->second->State();
-  return std::make_unique<StateRet>(args.mContainerId);
+  Json::Value jsonval;
+  it->second->State(jsonval);
+  return std::make_unique<StateRet>(args.mContainerId, jsonval);
 }
 
 std::unique_ptr<DeleteRet> Core::Exec(const DeleteArgs &args) {

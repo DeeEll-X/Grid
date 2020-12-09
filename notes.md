@@ -17,3 +17,20 @@
 + 增加state 和delete
   + delete先判断容器status，若不在运行，unmount并删除工作目录
   + sudo
+
+## 12.9
++ GRID_CONFIG 记录grid_config.json的路径
++ grid_config.json记录rootdir
++ 各container的rootpath为${rootdir}/${containerid}
++ 各container的bundle由create函数参数传入，记录在status.json文件中
+  + status.json的路径为${rootdir}/${containerid}/status.json
++ mntfolder路径为${rootdir}/${containerid}/mntfolder,将bundle内容挂载到该目录下
+  + 在create的时候进行
+
+rootdir
+  └── containerid
+        └── status.json
+        └── mntFolder(mount bundle)
+        └── writeLayer
+bundle
+  └── config.json

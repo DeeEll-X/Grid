@@ -39,7 +39,7 @@ class Core {
       case Args::argsType::Delete:
         return Exec(static_cast<const DeleteArgs &>(args));
       default:
-        break;
+        return nullptr;
     }
   }
   void Initialize();

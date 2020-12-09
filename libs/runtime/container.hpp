@@ -48,7 +48,7 @@ class Container {
               const fs::path &rootPath);
   void Start();
   void Kill(const int signal);
-  void State();
+  void State(Json::Value &);
   void Delete();
   void Restore(const fs::path &rootPath);
 

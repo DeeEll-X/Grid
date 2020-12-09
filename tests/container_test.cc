@@ -73,11 +73,13 @@ TEST_F(ContainerFixture, Create) {
   }
   fs::remove_all(syncPath / mContainerId);
 }
+
 TEST_F(ContainerFixture, Start) {
   if (getenv("ENABLE_GRID_ROOT") == nullptr) {
     return;
   }
   ASSERT_EQ(system("/bin/bash create_container.sh"), 0);
+  ASSERT_EQ(system("/bin/bash mount_mntFolder.sh"), 0);
   ContainerVisitor::SetStatus(mContainer, CREATED);
   ContainerVisitor::SetRootPath(mContainer, syncPath / mContainerId);
   auto& config = ContainerVisitor::MutableConfig(mContainer);
@@ -87,7 +89,9 @@ TEST_F(ContainerFixture, Start) {
   process.args = {"/bin/echo", "1"};
   mContainer.Start();
   sleep(1);
+  ASSERT_EQ(system("/bin/bash remove_container.sh"), 0);
 }
+
 TEST_F(ContainerFixture, Kill_NotRunning) {
   ContainerVisitor::SetStatus(mContainer, STOPPED);
   EXPECT_THROW(mContainer.Kill(2), std::runtime_error);
@@ -109,6 +113,18 @@ TEST_F(ContainerFixture, Kill) {
   mContainer.Kill(2);
   sleep(1);
   ASSERT_TRUE(received);
+}
+
+TEST_F(ContainerFixture, RestoreAndState) {
+  ASSERT_EQ(system("/bin/bash create_container.sh"), 0);
+  mContainer.Restore(syncPath / mContainerId);
+  Json::Value jsonVal;
+  mContainer.State(jsonVal);
+  ASSERT_EQ(jsonVal["Status"].asString(), "created");
+  ASSERT_EQ(jsonVal["OCIVersion"].asString(), "1.0.0");
+  ASSERT_EQ(jsonVal["ID"].asString(), "testContainer");
+  ASSERT_EQ(jsonVal["Pid"].asInt(), 0);
+  ASSERT_EQ(jsonVal["Bundle"].asString(), "rootdir/containers/testContainer");
 }
 }  // namespace Test
 }  // namespace Grid

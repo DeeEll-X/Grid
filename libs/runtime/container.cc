@@ -68,12 +68,7 @@ void Container::Kill(const int signal) {
     throw std::runtime_error("kill failed: container is not running");
 }
 
-void Container::State() {
-  Json::Value root;
-  StateToJson(root);
-  Json::StyledWriter styledWriter;
-  std::cout << styledWriter.write(root);
-}
+void Container::State(Json::Value &jsonval) { StateToJson(jsonval); }
 
 void Container::Delete() {
   // kill pid

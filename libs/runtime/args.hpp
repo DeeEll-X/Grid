@@ -1,5 +1,6 @@
 // Copyright [2020] <DeeEll-X/Veiasai>"
 #pragma once
+#include <jsoncpp/json/json.h>
 #include <signal.h>
 
 #include <string>
@@ -78,10 +79,11 @@ class StateArgs : public Args {
 
 class StateRet : public Ret {
  public:
-  explicit StateRet(const std::string &containerId)
-      : mContainerId(containerId) {}
+  StateRet(const std::string &containerId, const Json::Value &jsonval)
+      : mContainerId(containerId), mStateJson(jsonval) {}
   retType GetType() const override { return retType::State; }
   std::string mContainerId;
+  Json::Value mStateJson;
 };
 
 class DeleteArgs : public Args {
