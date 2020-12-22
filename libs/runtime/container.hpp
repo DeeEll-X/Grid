@@ -47,10 +47,12 @@ class Container {
   void Create(const std::string &id, const std::string &bundle,
               const fs::path &rootPath);
   void Start();
+  void SetNS();
   void Kill(const int signal);
   void State(Json::Value &);
   void Delete();
   void Restore(const fs::path &rootPath);
+  fs::path GetRootPath() { return mRootPath; }
 
  private:
   friend int InitProcess(void *);

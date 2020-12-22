@@ -15,6 +15,7 @@
 #include <vector>
 static const int STACK_SIZE = (1024 * 1024); /* Stack size for cloned child */
 namespace Grid {
+int CreateNamespace(void *c);
 // rootdir/containers/id/->mntpath
 void Container::Create(const std::string &id, const std::string &bundle,
                        const fs::path &rootPath) {
@@ -27,8 +28,28 @@ void Container::Create(const std::string &id, const std::string &bundle,
   LOG(INFO) << "creating container: "
             << " id:" << mId << " bundle:" << mBundle
             << " contentPath:" << mRootPath;
+
+  /* Allocate stack for child */
+  char *stack = new char[STACK_SIZE];  /* Start of stack buffer */
+  char *stackTop = stack + STACK_SIZE; /* End of stack buffer */
+  pid_t child_process = clone(CreateNamespace, stackTop,
+                              CLONE_NEWUTS | CLONE_NEWPID | CLONE_NEWNS |
+                                  CLONE_NEWNET | CLONE_NEWIPC | SIGCHLD,
+                              // | CLONE_NEWUSER
+                              this);
+  waitpid(child_process, NULL, 0);
   // write file
   Sync();
+}
+
+int CreateNamespace(void *c) {
+  auto pid = getpid();
+  auto nspath = (fs::path{"/proc"} / std::to_string(pid)) / "ns";
+  Container *container = static_cast<Container *>(c);
+  fs::path dst = container->GetRootPath() / "ns";
+  fs::create_directory(dst);
+  mount(nspath.c_str(), dst.c_str(), "", MS_BIND, NULL);
+  return 0;
 }
 
 void Container::Start() {
@@ -41,9 +62,7 @@ void Container::Start() {
 
   /* Create child that has its own UTS namespace;
     child commences execution in childFunc() */
-  pid_t child_process = clone(InitProcess, stackTop,
-                              CLONE_NEWUTS | CLONE_NEWPID | CLONE_NEWNS |
-                                  CLONE_NEWNET | CLONE_NEWIPC | SIGCHLD,
+  pid_t child_process = clone(InitProcess, stackTop, SIGCHLD,
                               // | CLONE_NEWUSER
                               this);
 
@@ -88,8 +107,23 @@ void Container::Restore(const fs::path &rootPath) {
   LoadConfig();
 }
 
+void Container::SetNS() {
+  int fdUts = open((mRootPath / "ns" / "uts").c_str(), O_RDONLY);
+  int fdPid = open((mRootPath / "ns" / "uts").c_str(), O_RDONLY);
+  int fdMnt = open((mRootPath / "ns" / "mnt").c_str(), O_RDONLY);
+  int fdNet = open((mRootPath / "ns" / "net").c_str(), O_RDONLY);
+  int fdIpc = open((mRootPath / "ns" / "ipc").c_str(), O_RDONLY);
+  // TODO: CGROUP
+  setns(fdUts, CLONE_NEWUTS);
+  setns(fdPid, CLONE_NEWPID);
+  setns(fdMnt, CLONE_NEWNS);
+  setns(fdNet, CLONE_NEWNET);
+  setns(fdIpc, CLONE_NEWIPC);
+}
+
 int InitProcess(void *c) {
   auto container = static_cast<Container *>(c);
+  container->SetNS();
   auto &process = container->mConfig.mProcess;
   if (!process.terminal) {
     // work as daemon process
