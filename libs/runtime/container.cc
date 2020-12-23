@@ -15,6 +15,26 @@
 #include <vector>
 static const int STACK_SIZE = (1024 * 1024); /* Stack size for cloned child */
 namespace Grid {
+static void Exec(const std::string &path, const std::vector<std::string> &vargs,
+                 const std::vector<std::string> &venvs) {
+  char *const *args = new char *[vargs.size() + 1];
+  auto args_it = (const char **)args;
+  for (auto &it : vargs) {
+    *args_it = it.c_str();
+    args_it++;
+  }
+  *args_it = nullptr;
+
+  char *const *envs = new char *[venvs.size() + 1];
+  auto envs_it = (const char **)envs;
+  for (auto &it : venvs) {
+    *envs_it = it.c_str();
+    envs_it++;
+  }
+  *envs_it = nullptr;
+  execvpe(path.c_str(), args, envs);
+}
+
 int CreateNamespace(void *c);
 // rootdir/containers/id/->mntpath
 void Container::Create(const std::string &id, const std::string &bundle,
@@ -37,7 +57,8 @@ void Container::Create(const std::string &id, const std::string &bundle,
                                   CLONE_NEWNET | CLONE_NEWIPC | SIGCHLD,
                               // | CLONE_NEWUSER
                               this);
-  waitpid(child_process, NULL, 0);
+  RunHook(Config::HookType::CREATE_RUNTIME);
+  waitpid(child_process, nullptr, 0);
   // write file
   Sync();
 }
@@ -48,7 +69,9 @@ int CreateNamespace(void *c) {
   Container *container = static_cast<Container *>(c);
   fs::path dst = container->GetRootPath() / "ns";
   fs::create_directory(dst);
-  mount(nspath.c_str(), dst.c_str(), "", MS_BIND, NULL);
+  mount(nspath.c_str(), dst.c_str(), "", MS_BIND, nullptr);
+
+  container->RunHook(Container::Config::HookType::CREATE_CONTAINER);
   return 0;
 }
 
@@ -72,6 +95,7 @@ void Container::Start() {
   mPid = child_process;
   mStatus = RUNNING;
   Sync();
+  RunHook(Config::HookType::POSTSTART);  // TODO: watch exec
   if (mConfig.mProcess.terminal) {
     siginfo_t siginfo;
     waitid(P_PID, child_process, &siginfo, WEXITED);
@@ -98,6 +122,8 @@ void Container::Delete() {
   umount((mRootPath / "mntFolder").c_str());
   // DeleteWriteLayer(containerName)
   fs::remove_all(mRootPath);
+
+  RunHook(Config::HookType::POSTSTOP);
 }
 
 void Container::Restore(const fs::path &rootPath) {
@@ -147,24 +173,8 @@ int InitProcess(void *c) {
 
   // readUserCommand();
   container->SetUpMount();
-  char *const *args = new char *[process.args.size() + 1];
-  auto args_it = (const char **)args;
-  for (auto &it : process.args) {
-    *args_it = it.c_str();
-    args_it++;
-  }
-  *args_it = nullptr;
-
-  char *const *envs = new char *[process.env.size() + 1];
-  auto envs_it = (const char **)envs;
-  for (auto &it : process.env) {
-    *envs_it = it.c_str();
-    envs_it++;
-  }
-  *envs_it = nullptr;
-
-  // execve
-  execvpe(args[0], args, envs);
+  container->RunHook(Container::Config::START_CONTAINER);
+  Exec(process.args[0], process.args, process.env);
 
   throw std::runtime_error(strerror(errno));
 }
@@ -179,7 +189,7 @@ void Container::PivotRoot(const std::string &root) {
   // 为了使当前root的老 root 和新 root
   // 不在同一个文件系统下，我们把root重新mount了一次 bind
   // mount是把相同的内容换了一个挂载点的挂载方法
-  if (mount(NULL, "/", NULL, MS_REC | MS_PRIVATE, NULL) == 1) {
+  if (mount(nullptr, "/", nullptr, MS_REC | MS_PRIVATE, nullptr) == 1) {
     throw std::runtime_error("pivotroot fail: mount root fail");
   }
 
@@ -315,4 +325,16 @@ void Container::AmendStatus() {
   }
 }
 
+void Container::RunHook(Config::HookType type) {
+  const auto &hooks = mConfig.mHooks[type];
+  for (const auto &hook : hooks) {
+    pid_t childProcess = fork();
+    if (childProcess < 0) throw std::runtime_error(strerror(errno));
+    if (childProcess == 0) {
+      Exec(hook.path, hook.args, hook.env);
+    }
+    waitpid(childProcess, nullptr, 0);
+    // TODO: check child process status
+  }
+}
 }  // namespace Grid

@@ -41,6 +41,60 @@ class Container {
       std::vector<std::string> env{};
       std::vector<std::string> args{};
     } mProcess;
+
+    struct HookEle {
+      fs::path path{""};
+      std::vector<std::string> args{};
+      std::vector<std::string> env{};
+      void parse(const Json::Value &root) {
+        path = root["path"].asString();
+        for (int i = 0; i < root["env"].size(); ++i) {
+          env.emplace_back(root["env"][i].asString());
+        }
+        for (int i = 0; i < root["args"].size(); ++i) {
+          args.emplace_back(root["args"][i].asString());
+        }
+      }
+    };
+
+    enum HookType {
+      PRESTART,
+      CREATE_RUNTIME,
+      CREATE_CONTAINER,
+      START_CONTAINER,
+      POSTSTART,
+      POSTSTOP
+    };
+    std::map<HookType, std::vector<HookEle>> mHooks;
+    HookType StringToHookType(const std::string &hookstr) {
+      if (hookstr == "prestart") {
+        return HookType::PRESTART;
+      } else if (hookstr == "createRuntime") {
+        return HookType::CREATE_RUNTIME;
+      } else if (hookstr == "createContainer") {
+        return HookType::CREATE_CONTAINER;
+      } else if (hookstr == "startContainer") {
+        return HookType::START_CONTAINER;
+      } else if (hookstr == "poststart") {
+        return HookType::POSTSTART;
+      } else if (hookstr == "poststop") {
+        return HookType::POSTSTOP;
+      }
+      throw std::runtime_error("unknown hook type: " + hookstr);
+    }
+    void ParseHooks(const Json::Value &root) {
+      Json::Value::Members members = root.getMemberNames();
+      for (Json::Value::Members::iterator it = members.begin();
+           it != members.end(); it++)
+      {
+        std::string hookName = *it;
+        HookType hookType = StringToHookType(hookName);
+        for (int i = 0; i < root[hookName].size(); ++i) {
+          mHooks[hookType].emplace_back();
+          mHooks[hookType].back().parse(root[hookName][i]);
+        }
+      }
+    }
   };
 
   explicit Container(System &sys) : mSystem(sys) {}
@@ -55,6 +109,7 @@ class Container {
   fs::path GetRootPath() { return mRootPath; }
 
  private:
+  friend int CreateNamespace(void *);
   friend int InitProcess(void *);
   friend class ContainerVisitor;
   void SetUpMount();
@@ -67,6 +122,7 @@ class Container {
   void StateToJson(Json::Value &);
   void Sync();
   void AmendStatus();
+  void RunHook(Config::HookType);
   System &mSystem;
   Config mConfig;
   std::string mOciVersion{""};

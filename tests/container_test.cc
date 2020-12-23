@@ -108,7 +108,7 @@ TEST_F(ContainerFixture, Kill) {
   sigemptyset(&act.sa_mask);
   act.sa_flags = 0;
 
-  if (sigaction(SIGINT, &act, NULL) < 0) ASSERT_TRUE(false);
+  if (sigaction(SIGINT, &act, nullptr) < 0) ASSERT_TRUE(false);
 
   mContainer.Kill(2);
   sleep(1);
