@@ -27,6 +27,21 @@
 + mntfolder路径为${rootdir}/${containerid}/mntfolder,将bundle内容挂载到该目录下
   + 在create的时候进行
 
+## 12.22
++ 修改：在create时就clone创建多个namespace，并将/proc/[pid]/ns挂载到mntfolder同级目录下，这样在该pid退出时/proc/[pid]/ns不被清理，可以start之后加入这个namespace
++ 在clone出的进程挂载而不是在父进程挂载是因为clone中的CLONE_STOPPED已经deprecated，在父进程挂载时无法保证子进程未退出
++ TODO：测试时create可以运行得到预期挂载结果，但是start后文件系统崩溃
+
+
+## 12.23
++ 增加hooks
+  + 使用map<enum,vector<hookele>>来记录不同hook里的指令
+  + 使用enum好处：
+    + 原则是尽量减少字面量，好处是容易修改
+    + 比较直观
+    + 运行时比较耗时较低
+    + 从JSON读出string转为enum容易进行错误处理
+```
 rootdir
   └── containerid
         └── status.json
@@ -34,3 +49,4 @@ rootdir
         └── writeLayer
 bundle
   └── config.json
+```

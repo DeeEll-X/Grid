@@ -106,8 +106,8 @@ class Container {
   void State(Json::Value &);
   void Delete();
   void Restore(const fs::path &rootPath);
-  fs::path GetRootPath() { return mRootPath; }
-
+  fs::path GetRootPath() { return mContainerDir.mRootPath; }
+  
  private:
   friend int CreateNamespace(void *);
   friend int InitProcess(void *);
@@ -131,7 +131,20 @@ class Container {
   int64_t mPid{0};
   std::string mBundle{""};
   std::map<std::string, std::string> mAnnotations;
-  fs::path mRootPath;
+  struct ContainerDir{
+    fs::path mRootPath{""};
+    fs::path mMntFolder{""};
+    fs::path mWriteLayer{""};
+    fs::path mNSMountFolder{""};
+    fs::path mStatusFilePath{""};
+    void Initialize(fs::path rootPath){
+      mRootPath = rootPath;
+      mMntFolder = rootPath/"mntFolder";
+      mWriteLayer = rootPath/"writeLayer";
+      mNSMountFolder = rootPath/"ns"; 
+      mStatusFilePath = rootPath/"status.json";
+    }
+  } mContainerDir;
   // System &mSystem;
 };
 }  // namespace Grid

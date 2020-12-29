@@ -14,6 +14,8 @@
 
 #include <vector>
 static const int STACK_SIZE = (1024 * 1024); /* Stack size for cloned child */
+static std::vector<std::string> namespaces{"uts", "ipc", "net","mnt"}; // pid
+static std::vector<long> nsflags{CLONE_NEWUTS, CLONE_NEWIPC, CLONE_NEWNET, CLONE_NEWNS};// CLONE_NEWPID
 namespace Grid {
 static void Exec(const std::string &path, const std::vector<std::string> &vargs,
                  const std::vector<std::string> &venvs) {
@@ -39,38 +41,69 @@ int CreateNamespace(void *c);
 // rootdir/containers/id/->mntpath
 void Container::Create(const std::string &id, const std::string &bundle,
                        const fs::path &rootPath) {
+
+  std::cout<<"create process id "<<getpid()<<std::endl;
   mId = id;
   mBundle = bundle;
-  LoadConfig();
+  LoadConfig(); 
+  LOG(INFO)<<"Container::Create: Config loaded"<<std::endl;
   mStatus = CREATED;
-  mRootPath = rootPath;
+  mContainerDir.Initialize(rootPath);
+  LOG(INFO)<<"Container::Create: ContainerDirs initialized"<<std::endl;
   NewWorkSpace();  // add mnt URL and root URL
-  LOG(INFO) << "creating container: "
+  std::cout<<"aufs mounted"<<std::endl;
+  LOG(INFO) << "Container::Create: creating container"
             << " id:" << mId << " bundle:" << mBundle
-            << " contentPath:" << mRootPath;
+            << " contentPath:" << mContainerDir.mRootPath;
 
   /* Allocate stack for child */
   char *stack = new char[STACK_SIZE];  /* Start of stack buffer */
   char *stackTop = stack + STACK_SIZE; /* End of stack buffer */
   pid_t child_process = clone(CreateNamespace, stackTop,
-                              CLONE_NEWUTS | CLONE_NEWPID | CLONE_NEWNS |
+                              CLONE_NEWUTS | CLONE_NEWNS | CLONE_NEWPID |
                                   CLONE_NEWNET | CLONE_NEWIPC | SIGCHLD,
                               // | CLONE_NEWUSER
                               this);
+
+  auto nspath = (fs::path{"/proc"} / std::to_string(child_process)) / "ns";
+  fs::path dst = mContainerDir.mNSMountFolder ;
+  fs::create_directory(dst);
+  LOG(INFO)<<"Container::Create: ns mount point: "<<dst<<" created"<<std::endl;
+
+  if (mount(dst.c_str(), dst.c_str(), "bind", MS_BIND | MS_REC , "")) {
+    throw std::runtime_error("create namespace fail: bind namespace fail");
+  }
+  if (mount(nullptr, dst.c_str(), nullptr, MS_PRIVATE | MS_REC, nullptr)){
+    throw std::runtime_error("create namespace fail: change mount point to private fail");
+  }
+  LOG(INFO)<<"Container::Create: ns mount point mounted itself private"<<std::endl;
+
+  for(auto ns: namespaces){
+    std::ofstream nsfile(dst/ns);
+    nsfile.close();
+    if(mount((nspath / ns).c_str(), (dst / ns).c_str(), "", MS_BIND, nullptr))
+      throw std::runtime_error("bind namespace fail: "+ ns + strerror(errno));
+  }
+  LOG(INFO)<<"Container::Create: new namespaces mounted"<<std::endl;
+
+
   RunHook(Config::HookType::CREATE_RUNTIME);
+  kill(child_process, SIGALRM);
   waitpid(child_process, nullptr, 0);
   // write file
   Sync();
 }
 
-int CreateNamespace(void *c) {
-  auto pid = getpid();
-  auto nspath = (fs::path{"/proc"} / std::to_string(pid)) / "ns";
-  Container *container = static_cast<Container *>(c);
-  fs::path dst = container->GetRootPath() / "ns";
-  fs::create_directory(dst);
-  mount(nspath.c_str(), dst.c_str(), "", MS_BIND, nullptr);
+static void SigAlrm(int signo)
+{
+  LOG(INFO)<<"CreateNamespace: SIFGALRM received"<<std::endl;
+}
 
+int CreateNamespace(void *c) {
+  if(signal(SIGALRM, SigAlrm) == SIG_ERR)
+    throw std::runtime_error("create namespace: register sigalrm handler fail "+ std::string(strerror(errno)));
+  pause();
+  Container* container = static_cast<Container*>(c);
   container->RunHook(Container::Config::HookType::CREATE_CONTAINER);
   return 0;
 }
@@ -88,7 +121,7 @@ void Container::Start() {
   pid_t child_process = clone(InitProcess, stackTop, SIGCHLD,
                               // | CLONE_NEWUSER
                               this);
-
+  std::cout<<"child_process"<<child_process<<std::endl;
   if (child_process < 0) {
     throw std::runtime_error(strerror(errno));
   }
@@ -119,32 +152,29 @@ void Container::Delete() {
     throw std::runtime_error("delete failed: container is running");
   }
   // DeleteMountPoint(containerName)
-  umount((mRootPath / "mntFolder").c_str());
+  umount(mContainerDir.mMntFolder.c_str());
+  for(auto ns: namespaces){
+    umount((mContainerDir.mNSMountFolder/ns).c_str());
+  }
   // DeleteWriteLayer(containerName)
-  fs::remove_all(mRootPath);
+  fs::remove_all(mContainerDir.mRootPath);
 
   RunHook(Config::HookType::POSTSTOP);
 }
 
 void Container::Restore(const fs::path &rootPath) {
-  mRootPath = rootPath;
+  mContainerDir.Initialize(rootPath);
   LoadStatusFile();
   AmendStatus();
   LoadConfig();
 }
 
 void Container::SetNS() {
-  int fdUts = open((mRootPath / "ns" / "uts").c_str(), O_RDONLY);
-  int fdPid = open((mRootPath / "ns" / "uts").c_str(), O_RDONLY);
-  int fdMnt = open((mRootPath / "ns" / "mnt").c_str(), O_RDONLY);
-  int fdNet = open((mRootPath / "ns" / "net").c_str(), O_RDONLY);
-  int fdIpc = open((mRootPath / "ns" / "ipc").c_str(), O_RDONLY);
-  // TODO: CGROUP
-  setns(fdUts, CLONE_NEWUTS);
-  setns(fdPid, CLONE_NEWPID);
-  setns(fdMnt, CLONE_NEWNS);
-  setns(fdNet, CLONE_NEWNET);
-  setns(fdIpc, CLONE_NEWIPC);
+  for(int i = 0;i<namespaces.size();++i){
+    int fd = open((mContainerDir.mNSMountFolder/namespaces[i]).c_str(),O_RDONLY);
+    setns(fd, nsflags[i]);
+    close(fd);
+  }
 }
 
 int InitProcess(void *c) {
@@ -160,7 +190,7 @@ int InitProcess(void *c) {
     close(1);
     int fin = open("/dev/null", O_RDONLY);
     if (fin < 0) throw std::runtime_error(strerror(errno));
-    auto logPath = fs::path(container->mRootPath) / "logFile";
+    auto logPath = container->GetRootPath() / "logFile";
     int logFd = open(logPath.c_str(), O_CREAT | O_WRONLY);
     if (logFd < 0) throw std::runtime_error(strerror(errno));
     dup2(logFd, 2);
@@ -180,7 +210,7 @@ int InitProcess(void *c) {
 }
 
 void Container::SetUpMount() {
-  PivotRoot(mRootPath / "mntFolder");
+  PivotRoot(mContainerDir.mMntFolder);
   mount("proc", "/proc", "proc", MS_NOEXEC | MS_NOSUID | MS_NODEV, "");
   mount("tmpfs", "/dev", "tmpfs", MS_NOSUID | MS_STRICTATIME, "mode=755");
 }
@@ -189,7 +219,7 @@ void Container::PivotRoot(const std::string &root) {
   // 为了使当前root的老 root 和新 root
   // 不在同一个文件系统下，我们把root重新mount了一次 bind
   // mount是把相同的内容换了一个挂载点的挂载方法
-  if (mount(nullptr, "/", nullptr, MS_REC | MS_PRIVATE, nullptr) == 1) {
+  if (mount(nullptr, "/", nullptr, MS_REC | MS_PRIVATE, nullptr)) {
     throw std::runtime_error("pivotroot fail: mount root fail");
   }
 
@@ -227,26 +257,21 @@ void Container::NewWorkSpace() {
 }
 
 void Container::CreateWriteLayer() {
-  fs::create_directories(mRootPath / "writeLayer");
+  fs::create_directories(mContainerDir.mWriteLayer);
 }
 
 void Container::CreateMountPoint() {
-  fs::path mntPath{mRootPath};
-  mntPath /= "mntFolder";
-  fs::create_directories(mntPath);
-  fs::path wLayerPath{mRootPath};
-  wLayerPath /= "writeLayer";
-  mSystem.MountAUFS(wLayerPath.generic_string(), mBundle,
-                    mntPath.generic_string());
+  fs::create_directories(mContainerDir.mMntFolder);
+  mSystem.MountAUFS(mContainerDir.mWriteLayer, mBundle,
+                    mContainerDir.mMntFolder);
 }
 
 void Container::LoadStatusFile() {
-  fs::path statusPath{mRootPath / "status.json"};
-  std::ifstream statusfile(statusPath, std::ifstream::binary);
+  std::ifstream statusfile(mContainerDir.mStatusFilePath, std::ifstream::binary);
   Json::Value root;
   Json::Reader reader;
   if (!statusfile.is_open()) {
-    throw std::runtime_error("statusFile cannot open!");
+    throw std::runtime_error("loadStatusFile fail: statusFile cannot open!");
   }
   if (reader.parse(statusfile, root)) {
     mOciVersion = root["OCIVersion"].asString();
@@ -297,11 +322,9 @@ void Container::Sync() {
   StateToJson(root);
 
   std::ofstream statusFile;
-  fs::path statusPath{mRootPath};
-  statusPath /= "status.json";
-  statusFile.open(statusPath);
+  statusFile.open(mContainerDir.mStatusFilePath);
   if (!statusFile.is_open()) {
-    throw std::runtime_error("statusFile cannot open!");
+    throw std::runtime_error("Sync fail: statusFile cannot open!");
   }
 
   Json::StyledWriter styledWriter;
@@ -314,7 +337,7 @@ void Container::AmendStatus() {
     if (!mPid) {
       throw std::runtime_error("state is running but pid = 0");
     }
-    auto logPath = fs::path(mRootPath) / "logFile";
+    auto logPath = fs::path(mContainerDir.mRootPath) / "logFile";
     int logFd = open(logPath.c_str(), O_CREAT | O_WRONLY);
     if (flock(logFd, LOCK_EX | LOCK_NB)) {
       mPid = 0;
@@ -326,15 +349,15 @@ void Container::AmendStatus() {
 }
 
 void Container::RunHook(Config::HookType type) {
-  const auto &hooks = mConfig.mHooks[type];
-  for (const auto &hook : hooks) {
-    pid_t childProcess = fork();
-    if (childProcess < 0) throw std::runtime_error(strerror(errno));
-    if (childProcess == 0) {
-      Exec(hook.path, hook.args, hook.env);
-    }
-    waitpid(childProcess, nullptr, 0);
-    // TODO: check child process status
-  }
+  // const auto &hooks = mConfig.mHooks[type];
+  // for (const auto &hook : hooks) {
+  //   pid_t childProcess = fork();
+  //   if (childProcess < 0) throw std::runtime_error(strerror(errno));
+  //   if (childProcess == 0) {
+  //     Exec(hook.path, hook.args, hook.env);
+  //   }
+  //   waitpid(childProcess, nullptr, 0);
+  //   // TODO: check child process status
+  // }cd ..
 }
 }  // namespace Grid
