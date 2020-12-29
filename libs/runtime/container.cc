@@ -14,15 +14,14 @@
 
 #include <vector>
 static const int STACK_SIZE = (1024 * 1024); /* Stack size for cloned child */
-static std::vector<std::string> namespaces{"uts", "ipc", "net", "mnt"};  // pid
-static std::vector<long> nsflags{CLONE_NEWUTS, CLONE_NEWIPC, CLONE_NEWNET,
-                                 CLONE_NEWNS};  // CLONE_NEWPID
+static const std::vector<std::string> namespaces{"uts", "ipc", "net","mnt"}; // pid
+static const std::vector<long> nsflags{CLONE_NEWUTS, CLONE_NEWIPC, CLONE_NEWNET, CLONE_NEWNS};// CLONE_NEWPID
 namespace Grid {
 static void Exec(const std::string &path, const std::vector<std::string> &vargs,
                  const std::vector<std::string> &venvs) {
   char *const *args = new char *[vargs.size() + 1];
   auto args_it = (const char **)args;
-  for (auto &it : vargs) {
+  for (const auto &it : vargs) {
     *args_it = it.c_str();
     args_it++;
   }
@@ -30,7 +29,7 @@ static void Exec(const std::string &path, const std::vector<std::string> &vargs,
 
   char *const *envs = new char *[venvs.size() + 1];
   auto envs_it = (const char **)envs;
-  for (auto &it : venvs) {
+  for (const auto &it : venvs) {
     *envs_it = it.c_str();
     envs_it++;
   }
@@ -81,8 +80,8 @@ void Container::Create(const std::string &id, const std::string &bundle,
   LOG(INFO) << "Container::Create: ns mount point mounted itself private"
             << std::endl;
 
-  for (auto ns : namespaces) {
-    std::ofstream nsfile(dst / ns);
+  for(const auto& ns: namespaces){
+    std::ofstream nsfile(dst/ns);
     nsfile.close();
     if (mount((nspath / ns).c_str(), (dst / ns).c_str(), "", MS_BIND, nullptr))
       throw std::runtime_error("bind namespace fail: " + ns + strerror(errno));
@@ -156,8 +155,8 @@ void Container::Delete() {
   }
   // DeleteMountPoint(containerName)
   umount(mContainerDir.mMntFolder.c_str());
-  for (auto ns : namespaces) {
-    umount((mContainerDir.mNSMountFolder / ns).c_str());
+  for(const auto& ns: namespaces){
+    umount((mContainerDir.mNSMountFolder/ns).c_str());
   }
   umount(mContainerDir.mNSMountFolder.c_str());
   // DeleteWriteLayer(containerName)
@@ -287,7 +286,7 @@ void Container::LoadStatusFile() {
     mBundle = root["Bundle"].asString();
     mConfig.mBundle = mBundle;
     std::vector<std::string> memberNames = root["Annotations"].getMemberNames();
-    for (auto &it : memberNames) {
+    for (const auto &it : memberNames) {
       mAnnotations[it] = root["Annotations"][it].asString();
     }
   }
@@ -318,7 +317,7 @@ void Container::StateToJson(Json::Value &root) {
   // root["Status"] = StatusToString()
   root["Pid"] = Json::Value::Int64(mPid);
   root["Bundle"] = mBundle;
-  for (auto &it : mAnnotations) {
+  for (const auto &it : mAnnotations) {
     root["Annotations"][it.first] = it.second;
   }
 }
