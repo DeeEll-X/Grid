@@ -85,8 +85,7 @@ class Container {
     void ParseHooks(const Json::Value &root) {
       Json::Value::Members members = root.getMemberNames();
       for (Json::Value::Members::iterator it = members.begin();
-           it != members.end(); it++)
-      {
+           it != members.end(); it++) {
         std::string hookName = *it;
         HookType hookType = StringToHookType(hookName);
         for (int i = 0; i < root[hookName].size(); ++i) {
@@ -107,7 +106,7 @@ class Container {
   void Delete();
   void Restore(const fs::path &rootPath);
   fs::path GetRootPath() { return mContainerDir.mRootPath; }
-  
+
  private:
   friend int CreateNamespace(void *);
   friend int InitProcess(void *);
@@ -131,18 +130,18 @@ class Container {
   int64_t mPid{0};
   std::string mBundle{""};
   std::map<std::string, std::string> mAnnotations;
-  struct ContainerDir{
+  struct ContainerDir {
     fs::path mRootPath{""};
     fs::path mMntFolder{""};
     fs::path mWriteLayer{""};
     fs::path mNSMountFolder{""};
     fs::path mStatusFilePath{""};
-    void Initialize(fs::path rootPath){
+    void Initialize(fs::path rootPath) {
       mRootPath = rootPath;
-      mMntFolder = rootPath/"mntFolder";
-      mWriteLayer = rootPath/"writeLayer";
-      mNSMountFolder = rootPath/"ns"; 
-      mStatusFilePath = rootPath/"status.json";
+      mMntFolder = rootPath / "mntFolder";
+      mWriteLayer = rootPath / "writeLayer";
+      mNSMountFolder = rootPath / "ns";
+      mStatusFilePath = rootPath / "status.json";
     }
   } mContainerDir;
   // System &mSystem;

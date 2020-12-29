@@ -14,8 +14,9 @@
 
 #include <vector>
 static const int STACK_SIZE = (1024 * 1024); /* Stack size for cloned child */
-static std::vector<std::string> namespaces{"uts", "ipc", "net","mnt"}; // pid
-static std::vector<long> nsflags{CLONE_NEWUTS, CLONE_NEWIPC, CLONE_NEWNET, CLONE_NEWNS};// CLONE_NEWPID
+static std::vector<std::string> namespaces{"uts", "ipc", "net", "mnt"};  // pid
+static std::vector<long> nsflags{CLONE_NEWUTS, CLONE_NEWIPC, CLONE_NEWNET,
+                                 CLONE_NEWNS};  // CLONE_NEWPID
 namespace Grid {
 static void Exec(const std::string &path, const std::vector<std::string> &vargs,
                  const std::vector<std::string> &venvs) {
@@ -41,16 +42,16 @@ int CreateNamespace(void *c);
 // rootdir/containers/id/->mntpath
 void Container::Create(const std::string &id, const std::string &bundle,
                        const fs::path &rootPath) {
-
   mId = id;
   mBundle = bundle;
-  LoadConfig(); 
-  LOG(INFO)<<"Container::Create: Config loaded"<<std::endl;
+  LoadConfig();
+  LOG(INFO) << "Container::Create: Config loaded" << std::endl;
   mStatus = CREATED;
   mContainerDir.Initialize(rootPath);
-  LOG(INFO)<<"Container::Create: ContainerDirs initialized"<<std::endl;
+  LOG(INFO) << "Container::Create: ContainerDirs initialized" << std::endl;
   NewWorkSpace();  // add mnt URL and root URL
-  LOG(INFO)<<"Container::Create: writeLayer and mntFolder created"<<std::endl;
+  LOG(INFO) << "Container::Create: writeLayer and mntFolder created"
+            << std::endl;
   LOG(INFO) << "Container::Create: creating container"
             << " id:" << mId << " bundle:" << mBundle
             << " contentPath:" << mContainerDir.mRootPath;
@@ -65,26 +66,28 @@ void Container::Create(const std::string &id, const std::string &bundle,
                               this);
 
   auto nspath = (fs::path{"/proc"} / std::to_string(child_process)) / "ns";
-  fs::path dst = mContainerDir.mNSMountFolder ;
+  fs::path dst = mContainerDir.mNSMountFolder;
   fs::create_directory(dst);
-  LOG(INFO)<<"Container::Create: ns mount point: "<<dst<<" created"<<std::endl;
+  LOG(INFO) << "Container::Create: ns mount point: " << dst << " created"
+            << std::endl;
 
-  if (mount(dst.c_str(), dst.c_str(), "bind", MS_BIND | MS_REC , "")) {
+  if (mount(dst.c_str(), dst.c_str(), "bind", MS_BIND | MS_REC, "")) {
     throw std::runtime_error("create namespace fail: bind namespace fail");
   }
-  if (mount(nullptr, dst.c_str(), nullptr, MS_PRIVATE | MS_REC, nullptr)){
-    throw std::runtime_error("create namespace fail: change mount point to private fail");
+  if (mount(nullptr, dst.c_str(), nullptr, MS_PRIVATE | MS_REC, nullptr)) {
+    throw std::runtime_error(
+        "create namespace fail: change mount point to private fail");
   }
-  LOG(INFO)<<"Container::Create: ns mount point mounted itself private"<<std::endl;
+  LOG(INFO) << "Container::Create: ns mount point mounted itself private"
+            << std::endl;
 
-  for(auto ns: namespaces){
-    std::ofstream nsfile(dst/ns);
+  for (auto ns : namespaces) {
+    std::ofstream nsfile(dst / ns);
     nsfile.close();
-    if(mount((nspath / ns).c_str(), (dst / ns).c_str(), "", MS_BIND, nullptr))
-      throw std::runtime_error("bind namespace fail: "+ ns + strerror(errno));
+    if (mount((nspath / ns).c_str(), (dst / ns).c_str(), "", MS_BIND, nullptr))
+      throw std::runtime_error("bind namespace fail: " + ns + strerror(errno));
   }
-  LOG(INFO)<<"Container::Create: new namespaces mounted"<<std::endl;
-
+  LOG(INFO) << "Container::Create: new namespaces mounted" << std::endl;
 
   RunHook(Config::HookType::CREATE_RUNTIME);
   kill(child_process, SIGALRM);
@@ -93,16 +96,17 @@ void Container::Create(const std::string &id, const std::string &bundle,
   Sync();
 }
 
-static void SigAlrm(int signo)
-{
-  LOG(INFO)<<"CreateNamespace: SIFGALRM received"<<std::endl;
+static void SigAlrm(int signo) {
+  LOG(INFO) << "CreateNamespace: SIFGALRM received" << std::endl;
 }
 
 int CreateNamespace(void *c) {
-  if(signal(SIGALRM, SigAlrm) == SIG_ERR)
-    throw std::runtime_error("create namespace: register sigalrm handler fail "+ std::string(strerror(errno)));
+  if (signal(SIGALRM, SigAlrm) == SIG_ERR)
+    throw std::runtime_error(
+        "create namespace: register sigalrm handler fail " +
+        std::string(strerror(errno)));
   pause();
-  Container* container = static_cast<Container*>(c);
+  Container *container = static_cast<Container *>(c);
   container->RunHook(Container::Config::HookType::CREATE_CONTAINER);
   return 0;
 }
@@ -120,7 +124,7 @@ void Container::Start() {
   pid_t child_process = clone(InitProcess, stackTop, CLONE_NEWPID | SIGCHLD,
                               // | CLONE_NEWUSER
                               this);
-  LOG(INFO)<<"Container::Start: child_process"<<child_process<<std::endl;
+  LOG(INFO) << "Container::Start: child_process" << child_process << std::endl;
   if (child_process < 0) {
     throw std::runtime_error(strerror(errno));
   }
@@ -152,8 +156,8 @@ void Container::Delete() {
   }
   // DeleteMountPoint(containerName)
   umount(mContainerDir.mMntFolder.c_str());
-  for(auto ns: namespaces){
-    umount((mContainerDir.mNSMountFolder/ns).c_str());
+  for (auto ns : namespaces) {
+    umount((mContainerDir.mNSMountFolder / ns).c_str());
   }
   umount(mContainerDir.mNSMountFolder.c_str());
   // DeleteWriteLayer(containerName)
@@ -170,8 +174,9 @@ void Container::Restore(const fs::path &rootPath) {
 }
 
 void Container::SetNS() {
-  for(int i = 0;i<namespaces.size();++i){
-    int fd = open((mContainerDir.mNSMountFolder/namespaces[i]).c_str(),O_RDONLY);
+  for (int i = 0; i < namespaces.size(); ++i) {
+    int fd =
+        open((mContainerDir.mNSMountFolder / namespaces[i]).c_str(), O_RDONLY);
     setns(fd, nsflags[i]);
     close(fd);
   }
@@ -267,7 +272,8 @@ void Container::CreateMountPoint() {
 }
 
 void Container::LoadStatusFile() {
-  std::ifstream statusfile(mContainerDir.mStatusFilePath, std::ifstream::binary);
+  std::ifstream statusfile(mContainerDir.mStatusFilePath,
+                           std::ifstream::binary);
   Json::Value root;
   Json::Reader reader;
   if (!statusfile.is_open()) {

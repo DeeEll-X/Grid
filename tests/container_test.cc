@@ -10,7 +10,7 @@
 #include "mock.hpp"
 
 namespace Grid {
-static std::vector<std::string> namespaces{"uts", "ipc", "net","mnt"}; // pid
+static std::vector<std::string> namespaces{"uts", "ipc", "net", "mnt"};  // pid
 class ContainerVisitor {
  public:
   static void SetStatus(Container& container, const Status status) {
@@ -73,10 +73,10 @@ TEST_F(ContainerFixture, Create) {
     ASSERT_EQ(root["Pid"].asInt64(), Json::Value::Int64(0));
   }
 
-  for(auto ns: namespaces){
-    umount((syncPath/mContainerId/"ns"/ns).c_str());
+  for (auto ns : namespaces) {
+    umount((syncPath / mContainerId / "ns" / ns).c_str());
   }
-  umount((syncPath/mContainerId/"ns").c_str());
+  umount((syncPath / mContainerId / "ns").c_str());
   fs::remove_all(syncPath / mContainerId);
 }
 
