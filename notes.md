@@ -50,3 +50,8 @@ rootdir
 bundle
   └── config.json
 ```
+## 12.29
++ 修改namespace：
+  + mnt namespace 成功挂载的前提是挂载dst directory是private 的挂载点
+  + pid namespace 在setns后，当前进程的pid namespace不发生改变，但是随后fork/clone出的子进程的pid namespace被设置为目标namespace
+  + 在clone时设置CLONE_NEWPID,clone出的子进程为一个新的pid namespace的1号进程，1号进程会是该namespace下所有孤儿进程的父进程。一个pid namespace的1号进程一旦退出，操作系统会给该namespace其他所有进程发送SIGKILL。

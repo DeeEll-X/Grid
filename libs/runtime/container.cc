@@ -42,7 +42,6 @@ int CreateNamespace(void *c);
 void Container::Create(const std::string &id, const std::string &bundle,
                        const fs::path &rootPath) {
 
-  std::cout<<"create process id "<<getpid()<<std::endl;
   mId = id;
   mBundle = bundle;
   LoadConfig(); 
@@ -51,7 +50,7 @@ void Container::Create(const std::string &id, const std::string &bundle,
   mContainerDir.Initialize(rootPath);
   LOG(INFO)<<"Container::Create: ContainerDirs initialized"<<std::endl;
   NewWorkSpace();  // add mnt URL and root URL
-  std::cout<<"aufs mounted"<<std::endl;
+  LOG(INFO)<<"Container::Create: writeLayer and mntFolder created"<<std::endl;
   LOG(INFO) << "Container::Create: creating container"
             << " id:" << mId << " bundle:" << mBundle
             << " contentPath:" << mContainerDir.mRootPath;
@@ -118,10 +117,10 @@ void Container::Start() {
 
   /* Create child that has its own UTS namespace;
     child commences execution in childFunc() */
-  pid_t child_process = clone(InitProcess, stackTop, SIGCHLD,
+  pid_t child_process = clone(InitProcess, stackTop, CLONE_NEWPID | SIGCHLD,
                               // | CLONE_NEWUSER
                               this);
-  std::cout<<"child_process"<<child_process<<std::endl;
+  LOG(INFO)<<"Container::Start: child_process"<<child_process<<std::endl;
   if (child_process < 0) {
     throw std::runtime_error(strerror(errno));
   }
@@ -156,6 +155,7 @@ void Container::Delete() {
   for(auto ns: namespaces){
     umount((mContainerDir.mNSMountFolder/ns).c_str());
   }
+  umount(mContainerDir.mNSMountFolder.c_str());
   // DeleteWriteLayer(containerName)
   fs::remove_all(mContainerDir.mRootPath);
 
