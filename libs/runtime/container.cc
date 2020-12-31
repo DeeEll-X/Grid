@@ -14,8 +14,10 @@
 
 #include <vector>
 static const int STACK_SIZE = (1024 * 1024); /* Stack size for cloned child */
-static const std::vector<std::string> namespaces{"uts", "ipc", "net","mnt"}; // pid
-static const std::vector<long> nsflags{CLONE_NEWUTS, CLONE_NEWIPC, CLONE_NEWNET, CLONE_NEWNS};// CLONE_NEWPID
+static const std::vector<std::string> namespaces{"uts", "ipc", "net",
+                                                 "mnt"};  // pid
+static const std::vector<long> nsflags{CLONE_NEWUTS, CLONE_NEWIPC, CLONE_NEWNET,
+                                       CLONE_NEWNS};  // CLONE_NEWPID
 namespace Grid {
 static void Exec(const std::string &path, const std::vector<std::string> &vargs,
                  const std::vector<std::string> &venvs) {
@@ -45,9 +47,12 @@ void Container::Create(const std::string &id, const std::string &bundle,
   mBundle = bundle;
   LoadConfig();
   LOG(INFO) << "Container::Create: Config loaded" << std::endl;
-  mStatus = CREATED;
+  mStatus = CREATING;
   mContainerDir.Initialize(rootPath);
   LOG(INFO) << "Container::Create: ContainerDirs initialized" << std::endl;
+
+  Sync();
+
   NewWorkSpace();  // add mnt URL and root URL
   LOG(INFO) << "Container::Create: writeLayer and mntFolder created"
             << std::endl;
@@ -71,26 +76,34 @@ void Container::Create(const std::string &id, const std::string &bundle,
             << std::endl;
 
   if (mount(dst.c_str(), dst.c_str(), "bind", MS_BIND | MS_REC, "")) {
+    Destroy();
     throw std::runtime_error("create namespace fail: bind namespace fail");
   }
   if (mount(nullptr, dst.c_str(), nullptr, MS_PRIVATE | MS_REC, nullptr)) {
+    Destroy();
     throw std::runtime_error(
         "create namespace fail: change mount point to private fail");
   }
   LOG(INFO) << "Container::Create: ns mount point mounted itself private"
             << std::endl;
 
-  for(const auto& ns: namespaces){
-    std::ofstream nsfile(dst/ns);
+  for (const auto &ns : namespaces) {
+    std::ofstream nsfile(dst / ns);
     nsfile.close();
-    if (mount((nspath / ns).c_str(), (dst / ns).c_str(), "", MS_BIND, nullptr))
+    if (mount((nspath / ns).c_str(), (dst / ns).c_str(), "", MS_BIND,
+              nullptr)) {
+      Destroy();
       throw std::runtime_error("bind namespace fail: " + ns + strerror(errno));
+    }
   }
   LOG(INFO) << "Container::Create: new namespaces mounted" << std::endl;
 
   RunHook(Config::HookType::CREATE_RUNTIME);
+  // std::cout<<"createruntime hook finished"<<std::endl;
   kill(child_process, SIGALRM);
   waitpid(child_process, nullptr, 0);
+
+  mStatus = CREATED;
   // write file
   Sync();
 }
@@ -100,12 +113,14 @@ static void SigAlrm(int signo) {
 }
 
 int CreateNamespace(void *c) {
-  if (signal(SIGALRM, SigAlrm) == SIG_ERR)
+  Container *container = static_cast<Container *>(c);
+  if (signal(SIGALRM, SigAlrm) == SIG_ERR) {
+    container->Destroy();
     throw std::runtime_error(
         "create namespace: register sigalrm handler fail " +
         std::string(strerror(errno)));
+  }
   pause();
-  Container *container = static_cast<Container *>(c);
   container->RunHook(Container::Config::HookType::CREATE_CONTAINER);
   return 0;
 }
@@ -123,10 +138,12 @@ void Container::Start() {
   pid_t child_process = clone(InitProcess, stackTop, CLONE_NEWPID | SIGCHLD,
                               // | CLONE_NEWUSER
                               this);
-  LOG(INFO) << "Container::Start: child_process" << child_process << std::endl;
+
   if (child_process < 0) {
-    throw std::runtime_error(strerror(errno));
+    throw std::runtime_error("Container::start fail: clone initprocess fail " +
+                             std::string(strerror(errno)));
   }
+  LOG(INFO) << "Container::Start: child_process" << child_process << std::endl;
   mPid = child_process;
   mStatus = RUNNING;
   Sync();
@@ -143,25 +160,17 @@ void Container::Kill(const int signal) {
   if (mStatus == RUNNING)
     kill(mPid, signal);
   else
-    throw std::runtime_error("kill failed: container is not running");
+    throw std::runtime_error(
+        "Container::Kill failed: container is not running");
 }
 
 void Container::State(Json::Value &jsonval) { StateToJson(jsonval); }
 
 void Container::Delete() {
-  // kill pid
   if (mStatus == RUNNING) {
-    throw std::runtime_error("delete failed: container is running");
+    throw std::runtime_error("Container::Delete failed: container is running");
   }
-  // DeleteMountPoint(containerName)
-  umount(mContainerDir.mMntFolder.c_str());
-  for(const auto& ns: namespaces){
-    umount((mContainerDir.mNSMountFolder/ns).c_str());
-  }
-  umount(mContainerDir.mNSMountFolder.c_str());
-  // DeleteWriteLayer(containerName)
-  fs::remove_all(mContainerDir.mRootPath);
-
+  Destroy();
   RunHook(Config::HookType::POSTSTOP);
 }
 
@@ -193,15 +202,24 @@ int InitProcess(void *c) {
     close(0);
     close(1);
     int fin = open("/dev/null", O_RDONLY);
-    if (fin < 0) throw std::runtime_error(strerror(errno));
+    if (fin < 0) {
+      throw std::runtime_error(
+          "Container::Start fail: InitProcess fail: cannot open /dev/null" +
+          std::string(strerror(errno)));
+    }
     auto logPath = container->GetRootPath() / "logFile";
     int logFd = open(logPath.c_str(), O_CREAT | O_WRONLY);
-    if (logFd < 0) throw std::runtime_error(strerror(errno));
+    if (logFd < 0) {
+      throw std::runtime_error(
+          "Container::Start fail: InitProcess fail: cannot open logfile" +
+          std::string(strerror(errno)));
+    }
     dup2(logFd, 2);
     fchmod(logFd, 0644);
     chdir(process.cwd.c_str());
     if (flock(1, LOCK_EX | LOCK_NB)) {
-      throw std::runtime_error("start failed: logfile is locked!");
+      throw std::runtime_error(
+          "Container::Start fail: InitProcess fail: logfile is locked!");
     }
   }
 
@@ -210,7 +228,8 @@ int InitProcess(void *c) {
   container->RunHook(Container::Config::START_CONTAINER);
   Exec(process.args[0], process.args, process.env);
 
-  throw std::runtime_error(strerror(errno));
+  throw std::runtime_error(
+      "Container::Start fail: InitProcess fail: reach end of function");
 }
 
 void Container::SetUpMount() {
@@ -279,15 +298,15 @@ void Container::LoadStatusFile() {
     throw std::runtime_error("loadStatusFile fail: statusFile cannot open!");
   }
   if (reader.parse(statusfile, root)) {
-    mOciVersion = root["OCIVersion"].asString();
-    mId = root["ID"].asString();
-    mStatus = StringToStatus(root["Status"].asString());
-    mPid = root["Pid"].asInt64();
-    mBundle = root["Bundle"].asString();
+    mOciVersion = root["ociVersion"].asString();
+    mId = root["id"].asString();
+    mStatus = StringToStatus(root["status"].asString());
+    mPid = root["pid"].asInt64();
+    mBundle = root["bundle"].asString();
     mConfig.mBundle = mBundle;
-    std::vector<std::string> memberNames = root["Annotations"].getMemberNames();
+    std::vector<std::string> memberNames = root["annotations"].getMemberNames();
     for (const auto &it : memberNames) {
-      mAnnotations[it] = root["Annotations"][it].asString();
+      mAnnotations[it] = root["annotations"][it].asString();
     }
   }
   statusfile.close();
@@ -295,8 +314,7 @@ void Container::LoadStatusFile() {
 
 void Container::LoadConfig() {
   mConfig.mBundle = mBundle;
-  fs::path configPath;
-  configPath /= mBundle;
+  fs::path configPath{mBundle};
   configPath /= "config.json";
   std::ifstream configFile(configPath, std::ifstream::binary);
   Json::Value root;
@@ -306,28 +324,31 @@ void Container::LoadConfig() {
   }
   if (reader.parse(configFile, root)) {
     mConfig.mProcess.parse(root["process"]);
+    mConfig.ParseHooks(root["hooks"]);
   }
   configFile.close();
 }
 
 void Container::StateToJson(Json::Value &root) {
-  root["OCIVersion"] = mOciVersion;
-  root["ID"] = mId;
-  root["Status"] = StatusToString(mStatus);
+  root["ociVersion"] = mOciVersion;
+  root["id"] = mId;
+  root["status"] = StatusToString(mStatus);
   // root["Status"] = StatusToString()
-  root["Pid"] = Json::Value::Int64(mPid);
-  root["Bundle"] = mBundle;
+  root["pid"] = Json::Value::Int64(mPid);
+  root["bundle"] = mBundle;
   for (const auto &it : mAnnotations) {
-    root["Annotations"][it.first] = it.second;
+    root["annotations"][it.first] = it.second;
   }
 }
 
 void Container::Sync() {
   Json::Value root;
   StateToJson(root);
+  if (access(mContainerDir.mRootPath.c_str(), 0)) {
+    fs::create_directories(mContainerDir.mRootPath);
+  }
 
-  std::ofstream statusFile;
-  statusFile.open(mContainerDir.mStatusFilePath);
+  std::ofstream statusFile(mContainerDir.mStatusFilePath);
   if (!statusFile.is_open()) {
     throw std::runtime_error("Sync fail: statusFile cannot open!");
   }
@@ -353,16 +374,31 @@ void Container::AmendStatus() {
   }
 }
 
+void Container::Destroy() {
+  // DeleteMountPoint(containerName)
+  umount(mContainerDir.mMntFolder.c_str());
+  for (const auto &ns : namespaces) {
+    umount((mContainerDir.mNSMountFolder / ns).c_str());
+  }
+  umount(mContainerDir.mNSMountFolder.c_str());
+  // DeleteWriteLayer(containerName)
+  fs::remove_all(mContainerDir.mRootPath);
+}
+
 void Container::RunHook(Config::HookType type) {
-  // const auto &hooks = mConfig.mHooks[type];
-  // for (const auto &hook : hooks) {
-  //   pid_t childProcess = fork();
-  //   if (childProcess < 0) throw std::runtime_error(strerror(errno));
-  //   if (childProcess == 0) {
-  //     Exec(hook.path, hook.args, hook.env);
-  //   }
-  //   waitpid(childProcess, nullptr, 0);
-  //   // TODO: check child process status
-  // }cd ..
+  const auto &hooks = mConfig.mHooks[type];
+  for (const auto &hook : hooks) {
+    pid_t childProcess = vfork();
+    if (childProcess < 0) {
+      Destroy();
+      throw std::runtime_error(strerror(errno));
+    }
+    if (childProcess == 0) {
+      auto statusfile = open(mContainerDir.mStatusFilePath.c_str(), O_RDONLY);
+      dup2(statusfile, STDIN_FILENO);
+      Exec(hook.path, hook.args, hook.env);
+    }
+    // TODO: check child process status
+  }
 }
 }  // namespace Grid

@@ -10,7 +10,8 @@
 #include "mock.hpp"
 
 namespace Grid {
-static const std::vector<std::string> namespaces{"uts", "ipc", "net","mnt"}; // pid
+static const std::vector<std::string> namespaces{"uts", "ipc", "net",
+                                                 "mnt"};  // pid
 class ContainerVisitor {
  public:
   static void SetStatus(Container& container, const Status status) {
@@ -67,14 +68,14 @@ TEST_F(ContainerFixture, Create) {
     throw std::runtime_error("test create fail: statusFile cannot open!");
   }
   if (reader.parse(statusFile, root)) {
-    ASSERT_EQ(root["ID"].asString(), mContainerId);
-    ASSERT_EQ(root["Bundle"].asString(), bundle.generic_string());
-    ASSERT_EQ(root["Status"].asString(), "created");
-    ASSERT_EQ(root["Pid"].asInt64(), Json::Value::Int64(0));
+    ASSERT_EQ(root["id"].asString(), mContainerId);
+    ASSERT_EQ(root["bundle"].asString(), bundle.generic_string());
+    ASSERT_EQ(root["status"].asString(), "created");
+    ASSERT_EQ(root["pid"].asInt64(), Json::Value::Int64(0));
   }
 
-  for(const auto& ns: namespaces){
-    umount((syncPath/mContainerId/"ns"/ns).c_str());
+  for (const auto& ns : namespaces) {
+    umount((syncPath / mContainerId / "ns" / ns).c_str());
   }
   umount((syncPath / mContainerId / "ns").c_str());
   fs::remove_all(syncPath / mContainerId);
@@ -126,11 +127,11 @@ TEST_F(ContainerFixture, RestoreAndState) {
   mContainer.Restore(syncPath / mContainerId);
   Json::Value jsonVal;
   mContainer.State(jsonVal);
-  ASSERT_EQ(jsonVal["Status"].asString(), "created");
-  ASSERT_EQ(jsonVal["OCIVersion"].asString(), "1.0.0");
-  ASSERT_EQ(jsonVal["ID"].asString(), "testContainer");
-  ASSERT_EQ(jsonVal["Pid"].asInt(), 0);
-  ASSERT_EQ(jsonVal["Bundle"].asString(), "rootdir/containers/testContainer");
+  ASSERT_EQ(jsonVal["status"].asString(), "created");
+  ASSERT_EQ(jsonVal["ociVersion"].asString(), "1.0.0");
+  ASSERT_EQ(jsonVal["id"].asString(), "testContainer");
+  ASSERT_EQ(jsonVal["pid"].asInt(), 0);
+  ASSERT_EQ(jsonVal["bundle"].asString(), "rootdir/containers/testContainer");
 
   ASSERT_EQ(system("/bin/bash remove_container.sh"), 0);
 }

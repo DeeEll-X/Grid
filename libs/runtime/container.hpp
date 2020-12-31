@@ -121,6 +121,7 @@ class Container {
   void StateToJson(Json::Value &);
   void Sync();
   void AmendStatus();
+  void Destroy();
   void RunHook(Config::HookType);
   System &mSystem;
   Config mConfig;
