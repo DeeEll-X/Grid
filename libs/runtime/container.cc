@@ -51,8 +51,6 @@ void Container::Create(const std::string &id, const std::string &bundle,
   mContainerDir.Initialize(rootPath);
   LOG(INFO) << "Container::Create: ContainerDirs initialized" << std::endl;
 
-  Sync();
-
   NewWorkSpace();  // add mnt URL and root URL
   LOG(INFO) << "Container::Create: writeLayer and mntFolder created"
             << std::endl;
@@ -68,6 +66,9 @@ void Container::Create(const std::string &id, const std::string &bundle,
                                   CLONE_NEWNET | CLONE_NEWIPC | SIGCHLD,
                               // | CLONE_NEWUSER
                               this);
+  mPid = child_process;
+  Sync();
+  RunHook(Config::HookType::CREATE_RUNTIME);
 
   auto nspath = (fs::path{"/proc"} / std::to_string(child_process)) / "ns";
   fs::path dst = mContainerDir.mNSMountFolder;
@@ -98,7 +99,6 @@ void Container::Create(const std::string &id, const std::string &bundle,
   }
   LOG(INFO) << "Container::Create: new namespaces mounted" << std::endl;
 
-  RunHook(Config::HookType::CREATE_RUNTIME);
   // std::cout<<"createruntime hook finished"<<std::endl;
   kill(child_process, SIGALRM);
   waitpid(child_process, nullptr, 0);
@@ -121,6 +121,7 @@ int CreateNamespace(void *c) {
         std::string(strerror(errno)));
   }
   pause();
+  container->SetUpMount();
   container->RunHook(Container::Config::HookType::CREATE_CONTAINER);
   return 0;
 }
@@ -224,7 +225,6 @@ int InitProcess(void *c) {
   }
 
   // readUserCommand();
-  container->SetUpMount();
   container->RunHook(Container::Config::START_CONTAINER);
   Exec(process.args[0], process.args, process.env);
 
@@ -394,8 +394,8 @@ void Container::RunHook(Config::HookType type) {
       throw std::runtime_error(strerror(errno));
     }
     if (childProcess == 0) {
-      auto statusfile = open(mContainerDir.mStatusFilePath.c_str(), O_RDONLY);
-      dup2(statusfile, STDIN_FILENO);
+      close(STDIN_FILENO);
+      open(mContainerDir.mStatusFilePath.c_str(), O_RDONLY);
       Exec(hook.path, hook.args, hook.env);
     }
     // TODO: check child process status
