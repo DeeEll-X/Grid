@@ -60,3 +60,11 @@ bundle
 + 在create时setup mount。（pause/signal race condition)
 + netns，必须有一个参数。网络设备设置成功，但仍然无法联网。
 + 调用Create Hook时，保持容器运行，并把PID传给hook。（status sync，open， dup2）
+
+## 01.06
++ bridge up 
++ add iptables rule
+  + iptables -A FORWARD -o netns0 -j ACCEPT
+  + iptables -A FORWARD -i netns0 -j ACCEPT
+  + iptables -t nat -A POSTROUTING -s 172.19.0.0/16 ! -o netns0 -j MASQUERADE
+  + (sudo iptables -t nat -A PREROUTING -p tcp -m tcp --dport 80 -j DNAT --to- destination 172.18.0.2 : 80)
