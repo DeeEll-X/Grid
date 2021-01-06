@@ -388,7 +388,7 @@ void Container::Destroy() {
 void Container::RunHook(Config::HookType type) {
   const auto &hooks = mConfig.mHooks[type];
   for (const auto &hook : hooks) {
-    pid_t childProcess = vfork();
+    pid_t childProcess = fork();
     if (childProcess < 0) {
       Destroy();
       throw std::runtime_error(strerror(errno));
@@ -397,6 +397,8 @@ void Container::RunHook(Config::HookType type) {
       close(STDIN_FILENO);
       open(mContainerDir.mStatusFilePath.c_str(), O_RDONLY);
       Exec(hook.path, hook.args, hook.env);
+    } else {
+      waitpid(childProcess, nullptr, 0);
     }
     // TODO: check child process status
   }
