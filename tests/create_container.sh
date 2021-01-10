@@ -1,11 +1,11 @@
 mkdir -p rootdir/containers/testContainer/mntFolder
 echo \
 "{ 
-    \"OCIVersion\" : \"1.0.0\",
-    \"ID\" : \"testContainer\",
-    \"Status\" : \"created\", 
-    \"Pid\" : 0,
-    \"Bundle\" : \"rootdir/containers/testContainer\"
+    \"ociVersion\" : \"1.0.0\",
+    \"id\" : \"testContainer\",
+    \"status\" : \"created\", 
+    \"pid\" : 0,
+    \"bundle\" : \"rootdir/containers/testContainer\"
 } " > rootdir/containers/testContainer/status.json
 echo  \
 "{
