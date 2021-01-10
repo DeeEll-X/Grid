@@ -62,6 +62,12 @@ bundle
 + 调用Create Hook时，保持容器运行，并把PID传给hook。（status sync，open， dup2）
 
 ## 01.06
++ bridge 交换机
++ tcpdump
++ traceroute
++ route
++ ip addr
++ iptables
 + bridge up 
 + add iptables rule
   + iptables -A FORWARD -o netns0 -j ACCEPT
